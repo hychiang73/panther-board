@@ -1,0 +1,195 @@
+From dda72b5fe9ab36a7169bde8edd9ca4970f7f1028 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Fri, 21 Oct 2011 22:08:55 +0800
+Subject: [PATCH 1/2] support adb, hdmi, usb-hub
+
+---
+ arch/arm/mach-omap2/board-omap3beagle.c |   62 ++++++++++++++++++++++++++++---
+ drivers/mmc/host/omap_hsmmc.c           |   26 +++++++++++++
+ 2 files changed, 82 insertions(+), 6 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index f77343b..e344228 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -64,8 +64,16 @@ static char *usb_functions_adb[] = {
+ 	"adb",
+ };
+ 
++static char *usb_functions_mass_storage[] = {
++	"usb_mass_storage",
++};
++static char *usb_functions_ums_adb[] = {
++    "usb_mass_storage",
++    "adb",
++};
++
+ static char *usb_functions_all[] = {
+-	"adb",
++    "adb", "usb_mass_storage",
+ };
+ 
+ static struct android_usb_product usb_products[] = {
+@@ -74,13 +82,39 @@ static struct android_usb_product usb_products[] = {
+ 		.num_functions	= ARRAY_SIZE(usb_functions_adb),
+ 		.functions	= usb_functions_adb,
+ 	},
++	{
++		.product_id	= GOOGLE_PRODUCT_ID,
++		.num_functions	= ARRAY_SIZE(usb_functions_mass_storage),
++		.functions	= usb_functions_mass_storage,
++	},
++	{
++		.product_id	= GOOGLE_PRODUCT_ID,
++		.num_functions	= ARRAY_SIZE(usb_functions_ums_adb),
++		.functions	= usb_functions_ums_adb,
++	},
+ };
+ 
++static struct usb_mass_storage_platform_data mass_storage_pdata = {
++	.nluns		= 1,
++	.vendor		= "rowboat",
++	.product	= "rowboat gadget",
++	.release	= 0x100,
++};
++
++static struct platform_device usb_mass_storage_device = {
++	.name	= "usb_mass_storage",
++	.id	= -1,
++	.dev	= {
++		.platform_data = &mass_storage_pdata,
++	},
++ };
++
+ static struct android_usb_platform_data android_usb_pdata = {
+ 	.vendor_id	= GOOGLE_VENDOR_ID,
+ 	.product_id	= GOOGLE_PRODUCT_ID,
+ 	.functions	= usb_functions_all,
+ 	.products	= usb_products,
++    .num_products	= ARRAY_SIZE(usb_products),
+ 	.version	= 0x0100,
+ 	.product_name	= "rowboat gadget",
+ 	.manufacturer_name	= "rowboat",
+@@ -156,8 +190,14 @@ static void __init omap3_beagle_init_rev(void)
+ 
+ 	switch (beagle_rev) {
+ 	case 7:
++	// Jack_201108XX: Force to use xM's setting
++#if 0
+ 		printk(KERN_INFO "OMAP3 Beagle Rev: Ax/Bx\n");
+ 		omap3_beagle_version = OMAP3BEAGLE_BOARD_AXBX;
++#else
++		printk(KERN_INFO "OMAP3 Panther Rev: A\n");
++		omap3_beagle_version = OMAP3BEAGLE_BOARD_XM;
++#endif
+ 		break;
+ 	case 6:
+ 		printk(KERN_INFO "OMAP3 Beagle Rev: C1/C2/C3\n");
+@@ -204,22 +244,22 @@ static struct mtd_partition omap3beagle_nand_partitions[] = {
+ 	{
+ 		.name		= "U-Boot",
+ 		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x80000 */
+-		.size		= 15 * NAND_BLOCK_SIZE,
++		.size		= 10 * NAND_BLOCK_SIZE,
+ 		.mask_flags	= MTD_WRITEABLE,	/* force read-only */
+ 	},
+ 	{
+ 		.name		= "U-Boot Env",
+-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x260000 */
+-		.size		= 1 * NAND_BLOCK_SIZE,
++		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x1c0000 */
++		.size		= 6 * NAND_BLOCK_SIZE,
+ 	},
+ 	{
+ 		.name		= "Kernel",
+ 		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x280000 */
+-		.size		= 32 * NAND_BLOCK_SIZE,
++		.size		= 40 * NAND_BLOCK_SIZE,
+ 	},
+ 	{
+ 		.name		= "File System",
+-		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x680000 */
++		.offset		= MTDPART_OFS_APPEND,	/* Offset = 0x780000 */
+ 		.size		= MTDPART_SIZ_FULL,
+ 	},
+ };
+@@ -635,6 +675,7 @@ static struct platform_device *omap3_beagle_devices[] __initdata = {
+ 	&leds_gpio,
+ 	&keys_gpio,
+ 	&beagle_dss_device,
++	&usb_mass_storage_device,
+ };
+ 
+ static void __init omap3beagle_flash_init(void)
+@@ -683,6 +724,8 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
+ 
+ #ifdef CONFIG_OMAP_MUX
+ static struct omap_board_mux board_mux[] __initdata = {
++    //USB gpio40
++    OMAP3_MUX(GPMC_A7, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT ),
+ 	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ };
+ #endif
+@@ -702,10 +745,17 @@ static void __init omap3_beagle_init(void)
+ 			ARRAY_SIZE(omap3_beagle_devices));
+ 	omap_serial_init();
+ 
++#if 0
+ 	omap_mux_init_gpio(170, OMAP_PIN_INPUT);
+ 	gpio_request(170, "DVI_nPD");
+ 	/* REVISIT leave DVI powered down until it's needed ... */
+ 	gpio_direction_output(170, true);
++#else
++	omap_mux_init_gpio(129, OMAP_PIN_INPUT);
++	gpio_request(129, "DVI_nPD");
++	/* REVISIT leave DVI powered down until it's needed ... */
++	gpio_direction_output(129, true);
++#endif
+ 
+ 	usb_musb_init(&musb_board_data);
+ 	usb_ehci_init(&ehci_pdata);
+diff --git a/drivers/mmc/host/omap_hsmmc.c b/drivers/mmc/host/omap_hsmmc.c
+index c75c799..28bc35c 100644
+--- a/drivers/mmc/host/omap_hsmmc.c
++++ b/drivers/mmc/host/omap_hsmmc.c
+@@ -305,11 +305,37 @@ static int omap_hsmmc_1_set_power(struct device *dev, int slot, int power_on,
+ 	if (mmc_slot(host).before_set_reg)
+ 		mmc_slot(host).before_set_reg(dev, slot, power_on, vdd);
+ 
++    // Jack_20110916: Add operations of VCC_AUX. VCC_AUX will be used to power GPIO 126,127 and 129.
++#if 0
+ 	if (power_on)
+ 		ret = mmc_regulator_set_ocr(host->mmc, host->vcc, vdd);
+ 	else
+ 		ret = mmc_regulator_set_ocr(host->mmc, host->vcc, 0);
+ 
++#endif
++    if (power_on)
++    {
++        ret = mmc_regulator_set_ocr(host->mmc, host->vcc, vdd);
++        /* Enable interface voltage rail, if needed */
++        if (ret == 0 && host->vcc_aux) {
++            ret = regulator_enable(host->vcc_aux);
++            if (ret < 0)
++                ret = mmc_regulator_set_ocr(host->mmc,
++                        host->vcc, 0);
++        }
++    }
++    else
++    {
++        /* Shut down the rail */
++        if (host->vcc_aux)
++            ret = regulator_disable(host->vcc_aux);
++        if (!ret) {
++            /* Then proceed to shut down the local regulator */
++            ret = mmc_regulator_set_ocr(host->mmc,
++                    host->vcc, 0);
++        }
++    }
++
+ 	if (mmc_slot(host).after_set_reg)
+ 		mmc_slot(host).after_set_reg(dev, slot, power_on, vdd);
+ 
+-- 
+1.7.4.1
+

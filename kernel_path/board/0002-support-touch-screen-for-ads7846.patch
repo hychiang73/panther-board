@@ -1,0 +1,235 @@
+From 639c516451e661a33726a986a3312caf7b47e053 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Fri, 21 Oct 2011 23:31:06 +0800
+Subject: [PATCH 2/2] support touch screen for ads7846
+
+---
+ arch/arm/mach-omap2/board-omap3beagle.c      |  112 ++++++++++++++++++++++++++
+ drivers/input/touchscreen/ads7846.c          |   12 +++
+ drivers/video/omap2/displays/panel-generic.c |   14 +++
+ 3 files changed, 138 insertions(+), 0 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index e344228..72bd998 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -47,6 +47,10 @@
+ #include <plat/nand.h>
+ #include <plat/usb.h>
+ 
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++#include <linux/spi/ads7846.h>
++#endif
++
+ #include "mux.h"
+ #include "hsmmc.h"
+ #include "timer-gp.h"
+@@ -233,6 +237,74 @@ fail0:
+ 	return;
+ }
+ 
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++
++#define OMAP3_EVM_TS_GPIO       157
++
++#include <plat/mcspi.h>
++#include <linux/spi/spi.h>
++
++static struct omap2_mcspi_device_config ads7846_mcspi_config = {
++    .turbo_mode     = 0,
++    .single_channel = 1,    /* 0: slave, 1: master */
++};
++
++static int ads7846_get_pendown_state(void)
++{
++    return !gpio_get_value(OMAP3_EVM_TS_GPIO);
++}
++
++struct ads7846_platform_data ads7846_config = {
++    .x_max                  = 0x0fff,
++    .y_max                  = 0x0fff,
++    .x_plate_ohms           = 180,
++    .pressure_max           = 255,
++    .debounce_max           = 10,
++    .debounce_tol           = 3,
++    .debounce_rep           = 1,
++    .get_pendown_state      = ads7846_get_pendown_state,
++    .keep_vref_on           = 1,
++    .settle_delay_usecs     = 150,
++    .wakeup                 = true,
++};
++
++static void __init omap3_beagle_config_mcspi4_mux(void)
++{
++    omap_mux_init_signal("mcbsp1_clkr.mcspi4_clk", OMAP_PIN_INPUT);
++    omap_mux_init_signal("mcbsp1_fsx.mcspi4_cs0", OMAP_PIN_OUTPUT);
++    omap_mux_init_signal("mcbsp1_dx.mcspi4_simo", OMAP_PIN_OUTPUT);
++    omap_mux_init_signal("mcbsp1_dr.mcspi4_somi", OMAP_PIN_INPUT_PULLUP);
++}
++
++struct spi_board_info omap3evm_spi_board_info[] = {
++    [0] = {
++        .modalias               = "ads7846",
++        .bus_num                = 4,
++        .chip_select            = 0,
++        .max_speed_hz           = 1500000,
++        .controller_data        = &ads7846_mcspi_config,
++        .irq                    = OMAP_GPIO_IRQ(OMAP3_EVM_TS_GPIO),
++        .platform_data          = &ads7846_config,
++        //.mode = SPI_MODE_1 | SPI_CS_HIGH,
++    },
++};
++
++static void ads7846_dev_init(void)
++{
++    printk("Initialize ads7846 touch screen controller\n");
++
++    if (gpio_request(OMAP3_EVM_TS_GPIO, "ADS7846 pendown") < 0)
++        printk(KERN_ERR "can't get ads7846 pen down GPIO\n");
++
++    gpio_direction_input(OMAP3_EVM_TS_GPIO);
++    gpio_set_debounce(OMAP3_EVM_TS_GPIO, 0xa);
++}
++
++#else
++static inline void __init ads7846_dev_init(void) { return; }
++#endif
++
++
+ static struct mtd_partition omap3beagle_nand_partitions[] = {
+ 	/* All the partition sizes are listed in terms of NAND block size */
+ 	{
+@@ -635,12 +707,41 @@ static struct platform_device leds_gpio = {
+ };
+ 
+ static struct gpio_keys_button gpio_buttons[] = {
++#if 0
+ 	{
+ 		.code			= BTN_EXTRA,
+ 		.gpio			= 7,
+ 		.desc			= "user",
+ 		.wakeup			= 1,
+ 	},
++#endif
++    // Jack_20110907: defined the buttons on Chipsee's expansion board
++    // To see the definitions of SCANCODE and KEYCODE, please refer to
++    // -- <ROWBOAT_ANDROID>/kernel/include/linux/input.h
++    // -- <ROWBOAT_ANDROID>/sdk/emulators/keymaps/qwerty.kl
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++    {
++        .code           = KEY_PROG1,
++        .gpio           = 4,
++        .desc           = "user",
++        .active_low     = false,
++        .wakeup         = 1,
++    },
++    {
++        .code           = KEY_PROG2,
++        .gpio           = 137,
++        .desc           = "s1",
++        .active_low     = true,
++        .wakeup         = 1,
++    },
++    {
++        .code           = KEY_PROG3,
++        .gpio           = 138,
++        .desc           = "s2",
++        .active_low     = true,
++        .wakeup         = 1,
++    },
++#endif
+ };
+ 
+ static struct gpio_keys_platform_data gpio_key_info = {
+@@ -727,6 +828,10 @@ static struct omap_board_mux board_mux[] __initdata = {
+     //USB gpio40
+     OMAP3_MUX(GPMC_A7, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT ),
+ 	{ .reg_offset = OMAP_MUX_TERMINATOR },
++//SPI ADS7846
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++	OMAP3_MUX(MCBSP1_FSR, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLDOWN),
++#endif
+ };
+ #endif
+ 
+@@ -761,6 +866,13 @@ static void __init omap3_beagle_init(void)
+ 	usb_ehci_init(&ehci_pdata);
+ 	omap3beagle_flash_init();
+ 
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++	omap3_beagle_config_mcspi4_mux();
++	omap3evm_spi_board_info[0].irq = gpio_to_irq(OMAP3_EVM_TS_GPIO);
++	spi_register_board_info(omap3evm_spi_board_info, ARRAY_SIZE(omap3evm_spi_board_info));
++	ads7846_dev_init();
++#endif
++
+ 	/* Ensure SDRC pins are mux'd for self-refresh */
+ 	omap_mux_init_signal("sdrc_cke0", OMAP_PIN_OUTPUT);
+ 	omap_mux_init_signal("sdrc_cke1", OMAP_PIN_OUTPUT);
+diff --git a/drivers/input/touchscreen/ads7846.c b/drivers/input/touchscreen/ads7846.c
+index 2f40a24..a9fc07b 100644
+--- a/drivers/input/touchscreen/ads7846.c
++++ b/drivers/input/touchscreen/ads7846.c
+@@ -161,6 +161,14 @@ struct ads7846 {
+ #define OMAP3EVM_YRES	        640
+ #endif
+ 
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++#define OMAP3EVM_XMIN		0x078
++#define OMAP3EVM_XMAX		0xF50
++#define OMAP3EVM_YMIN		0x140
++#define OMAP3EVM_YMAX		0xFA0
++#define OMAP3EVM_XRES		800
++#define OMAP3EVM_YRES	        480
++#endif
+ 
+ /* leave chip selected when we're done, for quicker re-select? */
+ #if	0
+@@ -870,8 +878,12 @@ static void ads7846_report_state(struct ads7846 *ts)
+ 		y = ((pdata->y_max * (y - OMAP3EVM_YMIN)) / \
+ 				(OMAP3EVM_YMAX - OMAP3EVM_YMIN));
+ #else
++#ifdef CONFIG_TOUCHSCREEN_ADS7846
++#if 0
+ 		x = pdata->x_max -
+ 			((pdata->x_max * (x - OMAP3EVM_XMIN)) / (OMAP3EVM_XMAX- OMAP3EVM_XMIN));
++#endif
++#endif
+ 		y = pdata->y_max -
+ 			((pdata->y_max * (y - OMAP3EVM_YMIN)) / (OMAP3EVM_YMAX - OMAP3EVM_YMIN));
+ #endif
+diff --git a/drivers/video/omap2/displays/panel-generic.c b/drivers/video/omap2/displays/panel-generic.c
+index 7080bb2..e48b33c 100644
+--- a/drivers/video/omap2/displays/panel-generic.c
++++ b/drivers/video/omap2/displays/panel-generic.c
+@@ -23,6 +23,19 @@
+ #include <plat/display.h>
+ 
+ static struct omap_video_timings generic_panel_timings = {
++#if defined(CONFIG_TOUCHSCREEN_ADS7846)
++    /* 7 inch LCD */
++    .x_res      = 800,
++    .y_res      = 480,
++    .pixel_clock    = 36000,
++    .hfp        = 1,
++    .hsw        = 48,
++    .hbp        = 46,
++    .vfp        = 12,
++    .vsw        = 3,
++    .vbp        = 23,
++};
++#else
+ 	/* 640 x 480 @ 60 Hz  Reduced blanking VESA CVT 0.31M3-R */
+ 	.x_res		= 640,
+ 	.y_res		= 480,
+@@ -34,6 +47,7 @@ static struct omap_video_timings generic_panel_timings = {
+ 	.vsw		= 4,
+ 	.vbp		= 7,
+ };
++#endif
+ 
+ static int generic_panel_power_on(struct omap_dss_device *dssdev)
+ {
+-- 
+1.7.4.1
+

@@ -1,0 +1,204 @@
+From 105d7d25edfcc90d388be6afdfdf7c8c80468d16 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sat, 22 Oct 2011 00:04:57 +0800
+Subject: [PATCH] patch to wifi,bt gpio and configure for panther
+
+---
+ arch/arm/cpu/arm_cortexa8/omap3/sdrc.c |    7 +++++-
+ arch/arm/include/asm/arch-omap3/mux.h  |   10 +++++++++
+ arch/arm/include/asm/mach-types.h      |    1 +
+ board/ti/beagle/beagle.c               |   13 ++++++++++++
+ board/ti/beagle/beagle.h               |   34 ++++++++++++++++++++++++++++++-
+ drivers/i2c/omap24xx_i2c.c             |    5 ++++
+ drivers/mmc/omap3_mmc.c                |   17 ++++++++++++++++
+ include/configs/omap3_beagle.h         |    6 +++++
+ 8 files changed, 90 insertions(+), 3 deletions(-)
+
+diff --git a/arch/arm/cpu/arm_cortexa8/omap3/sdrc.c b/arch/arm/cpu/arm_cortexa8/omap3/sdrc.c
+index b0048d5..814e621 100644
+--- a/arch/arm/cpu/arm_cortexa8/omap3/sdrc.c
++++ b/arch/arm/cpu/arm_cortexa8/omap3/sdrc.c
+@@ -99,7 +99,7 @@ u32 get_sdr_cs_offset(u32 cs)
+ 		return 0;
+ 
+ 	offset = readl(&sdrc_base->cs_cfg);
+-	offset = (offset & 15) << 27 | (offset & 0x30) >> 17;
++    offset = (offset & 15) << 27 | (offset & 0x30) << 17;
+ 
+ 	return offset;
+ }
+@@ -183,6 +183,11 @@ int dram_init(void)
+ 	if ((sysinfo.mtype == DDR_COMBO) || (sysinfo.mtype == DDR_STACKED)) {
+ 		do_sdrc_init(CS1, NOT_EARLY);
+ 		make_cs1_contiguous();
++        // Jack_20110829: Force CS1 to have the same mcfg value as CS0
++        // Caution:
++        //  This is a temporary solution for the incorrect memory size issue of Pantherboard.
++        //  It has not been fully tested. If you have any problem in booting, please remove the following code.
++        writel(readl(&sdrc_base->cs[CS0].mcfg), &sdrc_base->cs[CS1].mcfg);
+ 
+ 		size1 = get_sdr_cs_size(CS1);
+ 	}
+diff --git a/arch/arm/include/asm/arch-omap3/mux.h b/arch/arm/include/asm/arch-omap3/mux.h
+index ffeb982..7e8117f 100644
+--- a/arch/arm/include/asm/arch-omap3/mux.h
++++ b/arch/arm/include/asm/arch-omap3/mux.h
+@@ -53,6 +53,16 @@
+  * with OMAP34XX_CTRL_BASE to get the actual address
+  */
+ 
++/*GPIOs*/
++#define CONTROL_PADCONF_GPIO_112                  0x0134
++#define CONTROL_PADCONF_GPIO_113                  0x0136
++#define CONTROL_PADCONF_GPIO_114                  0x0138
++#define CONTROL_PADCONF_GPIO_115                  0x013A
++#define CONTROL_PADCONF_GPIO_126                  0x0A54
++#define CONTROL_PADCONF_GPIO_127                  0x0A56
++#define CONTROL_PADCONF_GPIO_128                  0x0A58
++#define CONTROL_PADCONF_GPIO_129                  0x0A5A
++
+ /*SDRC*/
+ #define CONTROL_PADCONF_SDRC_D0		0x0030
+ #define CONTROL_PADCONF_SDRC_D1		0x0032
+diff --git a/arch/arm/include/asm/mach-types.h b/arch/arm/include/asm/mach-types.h
+index 665e796..0593a4a 100644
+--- a/arch/arm/include/asm/mach-types.h
++++ b/arch/arm/include/asm/mach-types.h
+@@ -2773,6 +2773,7 @@ extern unsigned int __machine_arch_type;
+ #define MACH_TYPE_SKAT91_S3E           2790
+ #define MACH_TYPE_OMAP4_PANDA          2791
+ #define MACH_TYPE_DF7220               2792
++#define MACH_TYPE_CRANEBOARD           2932
+ #define MACH_TYPE_NEMINI               2793
+ #define MACH_TYPE_T8200                2794
+ #define MACH_TYPE_APF51                2795
+diff --git a/board/ti/beagle/beagle.c b/board/ti/beagle/beagle.c
+index d561275..fe7d7ba 100644
+--- a/board/ti/beagle/beagle.c
++++ b/board/ti/beagle/beagle.c
+@@ -115,8 +115,21 @@ int misc_init_r(void)
+ 
+ 	switch (beagle_revision) {
+ 	case REVISION_AXBX:
++        // Jack_201108XX: Force to use xM's setting
++#if 0
+ 		printf("Beagle Rev Ax/Bx\n");
+ 		setenv("mpurate", "600");
++#else
++        printf("Panther Rev A\n");
++        MUX_BEAGLE_XM();
++        /* Set VAUX2 to 1.8V for EHCI PHY */
++        twl4030_pmrecv_vsel_cfg(TWL4030_PM_RECEIVER_VAUX2_DEDICATED,
++                TWL4030_PM_RECEIVER_VAUX2_VSEL_18,
++                TWL4030_PM_RECEIVER_VAUX2_DEV_GRP,
++                TWL4030_PM_RECEIVER_DEV_GRP_P1);
++        setenv("mpurate", "1000");
++        beagle_revision = REVISION_XM;
++#endif
+ 		break;
+ 	case REVISION_CX:
+ 		printf("Beagle Rev C1/C2/C3\n");
+diff --git a/board/ti/beagle/beagle.h b/board/ti/beagle/beagle.h
+index 4227279..a97a0ca 100644
+--- a/board/ti/beagle/beagle.h
++++ b/board/ti/beagle/beagle.h
+@@ -416,6 +416,36 @@ const omap3_sysinfo sysinfo = {
+ 	MUX_VAL(CP(SYS_BOOT3),		(IDIS | PTD | DIS | M3)) /*DSS_DATA20*/\
+ 	MUX_VAL(CP(SYS_BOOT4),		(IDIS | PTD | DIS | M3)) /*DSS_DATA21*/\
+ 	MUX_VAL(CP(SYS_BOOT5),		(IDIS | PTD | DIS | M3)) /*DSS_DATA22*/\
+-	MUX_VAL(CP(SYS_BOOT6),		(IDIS | PTD | DIS | M3)) /*DSS_DATA23*/
+-
++	MUX_VAL(CP(SYS_BOOT6),		(IDIS | PTD | DIS | M3)) /*DSS_DATA23*/\
++	/* Pantherboard */\
++	/* Expansion Board */\
++	MUX_VAL(CP(MMC2_DAT4),		(IEN  | PTU | EN | M4)) /*GPIO_136*/\
++       MUX_VAL(CP(MMC2_DAT5),		(IEN  | PTU | EN | M4)) /*GPIO_137*/\
++       MUX_VAL(CP(MMC2_DAT6),		(IEN  | PTU | EN | M4)) /*GPIO_138*/\
++	MUX_VAL(CP(MMC2_DAT7),		(IEN  | PTU | EN | M4)) /*GPIO_139*/\
++	/* SDIO Interface to WIFI Module */ \
++	MUX_VAL(CP(MMC2_CLK),		(IEN  | PTU | EN  | M4)) /*GPIO_130*/\
++	MUX_VAL(CP(MMC2_CMD),		(IEN  | PTU | EN  | M4)) /*GPIO_131*/\
++	MUX_VAL(CP(MMC2_DAT0),		(IEN  | PTU | EN  | M4)) /*GPIO_132*/\
++	MUX_VAL(CP(MMC2_DAT1),		(IEN  | PTU | EN  | M4)) /*GPIO_133*/\
++	MUX_VAL(CP(MMC2_DAT2),		(IEN  | PTU | EN  | M4)) /*GPIO_134*/\
++	MUX_VAL(CP(MMC2_DAT3),		(IEN  | PTU | EN  | M4)) /*GPIO_135*/\
++	/* WG7310 */\
++	MUX_VAL(CP(ETK_D2),			(IDIS | PTD | DIS | M4)) /*GPIO_16 - WLAN_EN*/\
++	MUX_VAL(CP(CSI2_DX0),		(IEN  | PTU | EN  | M4)) /*GPIO_112 - WLAN_IRQ*/\
++	MUX_VAL(CP(ETK_D1),			(IDIS | PTD | DIS | M4)) /*GPIO_15 - BT_EN*/\
++	/* GPIOs */\
++	MUX_VAL(CP(GPMC_A4),			(IEN  | PTU | EN  | M4)) /*GPIO_37*/\
++	MUX_VAL(CP(GPMC_A5),			(IEN  | PTU | EN  | M4)) /*GPIO_38*/\
++	MUX_VAL(CP(CSI2_DY1),		(IEN  | PTU | EN  | M4)) /*GPIO_115*/ \
++	MUX_VAL(CP(CSI2_DX1),		(IEN  | PTU | EN  | M4)) /*GPIO_114*/\
++	/* LCM */ \
++	MUX_VAL(CP(MCBSP1_CLKR),		(IEN  | PTU | DIS | M1)) /*MCSPI4_CLK*/\
++	MUX_VAL(CP(MCBSP1_FSR),		(IEN  | PTD | EN  | M4)) /*GPIO_157*/\
++	MUX_VAL(CP(MCBSP1_DX),		(IDIS | PTU | DIS | M1)) /*GPIO_158*/\
++	MUX_VAL(CP(MCBSP1_FSX),		(IDIS | PTD | DIS | M1)) /*MCSPI4_CS0*/\
++	/* USB HUB Reset */\
++	MUX_VAL(CP(GPMC_A7),			(IDIS | PTU | DIS | M4)) /*GPIO_40*/\
++	/* DVI */\
++	MUX_VAL(CP(GPIO_129),		(IDIS | PTU | EN  | M4)) /*GPIO_129 - DVI_UP*/
+ #endif
+diff --git a/drivers/i2c/omap24xx_i2c.c b/drivers/i2c/omap24xx_i2c.c
+index 7cfe1d1..5abb5ea 100644
+--- a/drivers/i2c/omap24xx_i2c.c
++++ b/drivers/i2c/omap24xx_i2c.c
+@@ -431,3 +431,8 @@ int i2c_set_bus_num(unsigned int bus)
+ 
+ 	return 0;
+ }
++
++int i2c_get_bus_num(void)
++{
++           return (int) current_bus;
++}
+diff --git a/drivers/mmc/omap3_mmc.c b/drivers/mmc/omap3_mmc.c
+index a327e17..92a5fc6 100644
+--- a/drivers/mmc/omap3_mmc.c
++++ b/drivers/mmc/omap3_mmc.c
+@@ -74,6 +74,23 @@ unsigned char mmc_board_init(void)
+ 
+ 	writel(readl(&t2_base->devconf0) | MMCSDIO1ADPCLKISEL,
+ 		&t2_base->devconf0);
++
++        // Jack_20110830: Switch VSIM's voltage from 3V to 1.8V
++        // For more information, please refer to AMDM37x TRM section 13.5.2.
++#if 0
++#else
++#define mdelay(n) ({unsigned long msec=(n); while (msec--) udelay(1000);})
++#define PBIASLITEVMODE1 (1 << 8)
++    writel(readl(&t2_base->pbias_lite) & ~PBIASLITEPWRDNZ1, &t2_base->pbias_lite);
++    writel(readl(0x48002A5C) & ~0x40, 0x48002A5C);
++    writel(readl(&t2_base->pbias_lite) & ~PBIASLITEVMODE1, &t2_base->pbias_lite);
++    mdelay(100);
++    writel(readl(&t2_base->pbias_lite) | PBIASLITEPWRDNZ1, &t2_base->pbias_lite);
++    writel(readl(0x48002A5C) | 0x40, 0x48002A5C);
++
++    twl4030_i2c_write_u8(TWL4030_CHIP_PM_RECEIVER, 0x20, TWL4030_PM_RECEIVER_VSIM_DEV_GRP);
++    twl4030_i2c_write_u8(TWL4030_CHIP_PM_RECEIVER, 0x03, TWL4030_PM_RECEIVER_VSIM_DEDICATED);
++#endif
+ #endif
+ 	return 1;
+ }
+diff --git a/include/configs/omap3_beagle.h b/include/configs/omap3_beagle.h
+index 43837a4..16cf385 100644
+--- a/include/configs/omap3_beagle.h
++++ b/include/configs/omap3_beagle.h
+@@ -142,6 +142,12 @@
+ #endif /* CONFIG_MUSB_UDC */
+ 
+ #endif /* CONFIG_USB_OMAP3 */
++
++// Jack_20110920: Enable i2c multi-bus for debuging
++/* Enable Multi Bus support for I2C */
++#define CONFIG_I2C_MULTI_BUS           1
++#define CONFIG_SYS_I2C_NOPROBES                {0x0, 0x0}
++
+ /* commands to include */
+ #include <config_cmd_default.h>
+ 
+-- 
+1.7.4.1
+
