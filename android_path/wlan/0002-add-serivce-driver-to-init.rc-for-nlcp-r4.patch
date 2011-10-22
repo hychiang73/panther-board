@@ -1,0 +1,133 @@
+From 95e934585587007e149299da18349ece9ac88ebb Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 02:42:54 +0800
+Subject: [PATCH] add serivce, driver to init.rc for nlcp r4
+
+---
+ device/ti/beagleboard/init.rc |   75 ++++++++++++++++++++++++++++++-----------
+ 1 files changed, 55 insertions(+), 20 deletions(-)
+ mode change 100644 => 100755 device/ti/beagleboard/init.rc
+
+diff --git a/device/ti/beagleboard/init.rc b/device/ti/beagleboard/init.rc
+old mode 100644
+new mode 100755
+index 5a9b0e8..d749d8a
+--- a/device/ti/beagleboard/init.rc
++++ b/device/ti/beagleboard/init.rc
+@@ -176,25 +176,49 @@ loglevel 3
+     mkdir /data/misc/systemkeys 0700 system system
+     mkdir /data/misc/vpn/profiles 0770 system system
+     # give system access to wpa_supplicant.conf for backup and restore
+-    mkdir /system/etc/wifi 0770 wifi wifi
+     chmod 0770 /system/etc/wifi
+     chmod 0660 /system/etc/wifi/wpa_supplicant.conf
+-    chown wifi wifi /system/etc/wifi/wpa_supplicant.conf
+-    mkdir /data/misc/wifi 0770 wifi wifi
+-    mkdir /data/misc/wifi/sockets 0770 wifi wifi
+-    chmod 0770 /data/misc/wifi
+-    chmod 0660 /data/misc/wifi/wpa_supplicant.conf
+-    chown wifi wifi /data/misc/wifi
+-    chown wifi wifi /data/misc/wifi/wpa_supplicant.conf
+     mkdir /data/local 0771 shell shell
+     mkdir /data/local/tmp 0771 shell shell
+     mkdir /data/data 0771 system system
+     mkdir /data/app-private 0771 system system
+     mkdir /data/app 0771 system system
+     mkdir /data/property 0700 root root
+-    mkdir /data/misc/dhcp 0770 dhcp dhcp
+     mkdir /data/misc/udhcpd 0777 wifi wifi
+-    chown dhcp dhcp /data/misc/dhcp
++
++    ######## NLCP R4 Setting ########
++    # Set permission
++        chown system system /system/lib/modules
++        chmod 0777 /system/lib/modules/wl12xx_sdio.ko
++        chown system system /system/lib/modules/wl12xx_sdio.ko
++        mkdir /system/etc/firmware 0770 system wifi
++        mkdir /system/etc/firmware/ti-connectivity 0770 system wifi
++        chmod 0777 /system/etc/firmware/ti-connectivity/wl1271-fw-multirole-roc.bin
++        chmod 0777 /system/etc/firmware/ti-connectivity/wl1271-fw-multirole-plt.bin
++        chmod 0777 /system/etc/firmware/ti-connectivity/wl1271-nvs.bin
++        mkdir /data/misc/wifi/sockets 0770 wifi wifi
++        chmod 0770 /data/misc/wifi
++        chmod 0660 /data/misc/wifi/wpa_supplicant.conf
++        chown wifi wifi /system/etc/wifi/wpa_supplicant.conf
++        mkdir /data/misc/wifi 0770 wifi wifi
++        mkdir /data/misc/dhcp 0770 dhcp dhcp
++        chown dhcp dhcp /data/misc/dhcp
++
++    # Load wifi drivers (all except wl12xx_sdio)
++        insmod /system/lib/modules/compat.ko
++        insmod /system/lib/modules/cfg80211.ko
++        insmod /system/lib/modules/mac80211.ko
++        insmod /system/lib/modules/wl12xx.ko debug_level=0x63c00
++    # wifi drivers debugging (optional)
++        write /proc/sys/kernel/printk 8
++        mount -t debugfs nodev /sys/kernel/debug
++        write /sys/kernel/debug/dynamic_debug/control 'module cfg80211 +p'
++        write /sys/kernel/debug/dynamic_debug/control 'module mac80211 +p'
++        write /sys/kernel/debug/dynamic_debug/control 'module wl12xx +p'
++    on post-fs
++        chown wifi wifi /data/misc/wifi
++        chown wifi wifi /data/misc/wifi/wpa_supplicant.conf
++    #################################
+ 
+     # wlan driver helper modules
+ #    insmod /system/etc/wifi/sdio.ko
+@@ -325,11 +349,11 @@ on boot
+     chown system system /sys/kernel/ipv4/tcp_rmem_def
+     chown system system /sys/kernel/ipv4/tcp_rmem_max
+     chown root radio /proc/cmdline
+-    chown system system /system/etc/wifi
+-    chown system system /system/etc/wifi/sdio.ko
+-    chown system system /system/etc/wifi/tiwlan_drv.ko
+-    chown system system /system/etc/wifi/firmware.bin
+-    chown system system /system/etc/wifi/tiwlan.ini
++#chown system system /system/etc/wifi
++#chown system system /system/etc/wifi/sdio.ko
++#chown system system /system/etc/wifi/tiwlan_drv.ko
++#chown system system /system/etc/wifi/firmware.bin
++#chown system system /system/etc/wifi/tiwlan.ini
+     chmod 0755 /wl1271bt_enable
+ 
+ # Define TCP buffer sizes for various networks
+@@ -340,7 +364,7 @@ on boot
+     setprop net.tcp.buffersize.edge    4093,26280,35040,4096,16384,35040
+     setprop net.tcp.buffersize.gprs    4092,8760,11680,4096,8760,11680
+ 
+-    setprop wifi.interface tiwlan0
++    setprop wifi.interface wlan0:0
+ 
+     class_start default
+ 
+@@ -494,12 +518,23 @@ service hciattach /system/bin/hciattach -n /dev/ttyS1 texas 3000000
+     disabled
+     oneshot
+ 
+-service wpa_supplicant /system/bin/wpa_supplicant -Dtiwlan0 -itiwlan0 -c/data/misc/wifi/wpa_supplicant.conf -dd
+-    socket wpa_tiwlan0 dgram 660 wifi wifi
++#service wpa_supplicant /system/bin/wpa_supplicant -Dtiwlan0 -itiwlan0 -c/data/misc/wifi/wpa_supplicant.conf -dd
++#    socket wpa_tiwlan0 dgram 660 wifi wifi
++#    disabled
++#    oneshot
++
++#service dhcpcd /system/bin/dhcpcd -o domain_name_servers -ABKL
++#service dhcpcd /system/bin/dhcpcd  -ABKL tiwlan0
++#    disabled
++#    oneshot
++
++######## NLCP R4 Setting ########
++service wpa_supplicant /system/bin/wpa_supplicant -Dmac80211_wext -iwlan0 -c/data/misc/wifi/wpa_supplicant.conf -dd
++    socket wpa_wlan0:0 dgram 660 wifi wifi
+     disabled
+     oneshot
+ 
+-#service dhcpcd /system/bin/dhcpcd -o domain_name_servers -ABKL
+-service dhcpcd /system/bin/dhcpcd  -ABKL tiwlan0
++service dhcpcd /system/bin/dhcpcd -ABKL -d wlan0:0
+     disabled
+     oneshot
++################################
+-- 
+1.7.4.1
+

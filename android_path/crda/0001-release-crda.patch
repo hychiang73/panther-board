@@ -1,0 +1,3053 @@
+From 372d4f0fc3cef204fdfbd2c36c266a5cac918a7e Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sat, 22 Oct 2011 02:02:12 +0800
+Subject: [PATCH 06/10] release crda
+
+It is udev helper for communication between the kernel and user space for regulatory
+compliance.
+---
+ external/crda/.gitignore                   |   11 +
+ external/crda/Android.mk                   |   51 ++
+ external/crda/LICENSE                      |   16 +
+ external/crda/Makefile                     |  142 +++++
+ external/crda/README                       |   96 ++++
+ external/crda/crda.8                       |   85 +++
+ external/crda/crda.c                       |  337 ++++++++++++
+ external/crda/crda.spec                    |   32 ++
+ external/crda/debian-example/changelog     |   11 +
+ external/crda/debian-example/compat        |    1 +
+ external/crda/debian-example/control       |   17 +
+ external/crda/debian-example/copyright     |   21 +
+ external/crda/debian-example/docs          |    1 +
+ external/crda/debian-example/rules         |    8 +
+ external/crda/intersect.c                  |  341 ++++++++++++
+ external/crda/keys-ssl.c                   |   40 ++
+ external/crda/nl80211.h                    |  783 ++++++++++++++++++++++++++++
+ external/crda/print-regdom.c               |  122 +++++
+ external/crda/pubkeys/linville.key.pub.pem |    9 +
+ external/crda/regdb.h                      |  127 +++++
+ external/crda/regdbdump.8                  |   37 ++
+ external/crda/regdbdump.c                  |   94 ++++
+ external/crda/reglib.c                     |  153 ++++++
+ external/crda/reglib.h                     |   97 ++++
+ external/crda/regulatory.bin               |  Bin 0 -> 3224 bytes
+ external/crda/udev/regulatory.rules        |    5 +
+ external/crda/utils/key2pub.py             |  153 ++++++
+ 27 files changed, 2790 insertions(+), 0 deletions(-)
+ create mode 100644 external/crda/.gitignore
+ create mode 100644 external/crda/Android.mk
+ create mode 100644 external/crda/LICENSE
+ create mode 100644 external/crda/Makefile
+ create mode 100644 external/crda/README
+ create mode 100644 external/crda/crda.8
+ create mode 100644 external/crda/crda.c
+ create mode 100644 external/crda/crda.spec
+ create mode 100644 external/crda/debian-example/changelog
+ create mode 100644 external/crda/debian-example/compat
+ create mode 100644 external/crda/debian-example/control
+ create mode 100644 external/crda/debian-example/copyright
+ create mode 100644 external/crda/debian-example/docs
+ create mode 100755 external/crda/debian-example/rules
+ create mode 100644 external/crda/intersect.c
+ create mode 100644 external/crda/keys-ssl.c
+ create mode 100644 external/crda/nl80211.h
+ create mode 100644 external/crda/print-regdom.c
+ create mode 100644 external/crda/pubkeys/linville.key.pub.pem
+ create mode 100644 external/crda/regdb.h
+ create mode 100644 external/crda/regdbdump.8
+ create mode 100644 external/crda/regdbdump.c
+ create mode 100644 external/crda/reglib.c
+ create mode 100644 external/crda/reglib.h
+ create mode 100644 external/crda/regulatory.bin
+ create mode 100644 external/crda/udev/regulatory.rules
+ create mode 100755 external/crda/utils/key2pub.py
+
+diff --git a/external/crda/.gitignore b/external/crda/.gitignore
+new file mode 100644
+index 0000000..8ee749e
+--- /dev/null
++++ b/external/crda/.gitignore
+@@ -0,0 +1,11 @@
++*~
++regulatory.sqlite
++regulatory.bin
++crda
++dump
++intersect
++regdbdump
++*.o
++*.pyc
++keys-*.c
++key.priv.pem
+diff --git a/external/crda/Android.mk b/external/crda/Android.mk
+new file mode 100644
+index 0000000..0beb665
+--- /dev/null
++++ b/external/crda/Android.mk
+@@ -0,0 +1,51 @@
++LOCAL_PATH:= $(call my-dir)
++
++include $(CLEAR_VARS)
++
++LOCAL_SRC_FILES := \
++	reglib.c \
++	crda.c \
++	keys-ssl.c
++
++LOCAL_C_INCLUDES := \
++	$(LOCAL_PATH) \
++	external/libnl/include \
++	external/openssl/include
++
++LOCAL_CFLAGS := -DUSE_SSL -DPUBKEY_DIR=\"\"
++
++LOCAL_MODULE_TAGS := eng
++LOCAL_SHARED_LIBRARIES := libnl libcrypto
++LOCAL_MODULE := crda
++
++include $(BUILD_EXECUTABLE)
++
++include $(CLEAR_VARS)
++
++LOCAL_SRC_FILES := \
++	reglib.c \
++	keys-ssl.c \
++	regdbdump.c \
++	print-regdom.c
++
++LOCAL_C_INCLUDES := \
++	$(LOCAL_PATH) \
++	external/libnl/include \
++	external/openssl/include
++
++LOCAL_CFLAGS := -DUSE_SSL -DPUBKEY_DIR=\"\"
++
++LOCAL_MODULE_TAGS := optional
++LOCAL_SHARED_LIBRARIES := libnl libcrypto
++LOCAL_MODULE := regdbdump
++
++include $(BUILD_EXECUTABLE)
++
++
++include $(CLEAR_VARS)
++LOCAL_MODULE_CLASS = FIRMWARE
++LOCAL_MODULE := regulatory.bin
++LOCAL_MODULE_PATH := $(TARGET_OUT)/lib/crda
++LOCAL_SRC_FILES := $(LOCAL_MODULE)
++LOCAL_MODULE_TAGS := eng
++include $(BUILD_PREBUILT)
+diff --git a/external/crda/LICENSE b/external/crda/LICENSE
+new file mode 100644
+index 0000000..652a6dd
+--- /dev/null
++++ b/external/crda/LICENSE
+@@ -0,0 +1,16 @@
++Copyright (c) 2008, Luis R. Rodriguez <mcgrof@gmail.com>
++Copyright (c) 2008, Johannes Berg <johannes@sipsolutions.net>
++Copyright (c) 2008, Michael Green <Michael.Green@Atheros.com>
++
++Permission to use, copy, modify, and/or distribute this software for any
++purpose with or without fee is hereby granted, provided that the above
++copyright notice and this permission notice appear in all copies.
++
++THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++
+diff --git a/external/crda/Makefile b/external/crda/Makefile
+new file mode 100644
+index 0000000..b8bc7d3
+--- /dev/null
++++ b/external/crda/Makefile
+@@ -0,0 +1,142 @@
++# Modify as you see fit, note this is built into crda,
++# so if you change it here you will have to change crda.c
++REG_BIN?=/usr/lib/crda/regulatory.bin
++REG_GIT?=git://git.kernel.org/pub/scm/linux/kernel/git/linville/wireless-regdb.git
++
++PREFIX ?= /usr/
++MANDIR ?= $(PREFIX)/share/man/
++
++SBINDIR ?= /sbin/
++
++# Use a custom CRDA_UDEV_LEVEL when callling make install to
++# change your desired level for the udev regulatory.rules
++CRDA_UDEV_LEVEL?=85
++UDEV_LEVEL=$(CRDA_UDEV_LEVEL)-
++# You can customize this if your distributions uses
++# a different location.
++UDEV_RULE_DIR?=/lib/udev/rules.d/
++
++# If your distribution requires a custom pubkeys dir
++# you must update this variable to reflect where the
++# keys are put when building. For example you can run
++# with make PUBKEY_DIR=/usr/lib/crda/pubkeys
++PUBKEY_DIR?=pubkeys
++RUNTIME_PUBKEY_DIR?=/etc/wireless-regdb/pubkeys
++
++CFLAGS += -Wall -g
++
++all: all_noverify verify
++
++all_noverify: crda intersect regdbdump
++
++ifeq ($(USE_OPENSSL),1)
++CFLAGS += -DUSE_OPENSSL -DPUBKEY_DIR=\"$(RUNTIME_PUBKEY_DIR)\" `pkg-config --cflags openssl`
++LDLIBS += `pkg-config --libs openssl`
++
++reglib.o: keys-ssl.c
++
++else
++CFLAGS += -DUSE_GCRYPT
++LDLIBS += -lgcrypt
++
++reglib.o: keys-gcrypt.c
++
++endif
++MKDIR ?= mkdir -p
++INSTALL ?= install
++
++NL1FOUND := $(shell pkg-config --atleast-version=1 libnl-1 && echo Y)
++NL2FOUND := $(shell pkg-config --atleast-version=2 libnl-2.0 && echo Y)
++
++ifeq ($(NL1FOUND),Y)
++NLLIBNAME = libnl-1
++endif
++
++ifeq ($(NL2FOUND),Y)
++CFLAGS += -DCONFIG_LIBNL20
++NLLIBS += -lnl-genl
++NLLIBNAME = libnl-2.0
++endif
++
++ifeq ($(NLLIBNAME),)
++$(error Cannot find development files for any supported version of libnl)
++endif
++
++NLLIBS += `pkg-config --libs $(NLLIBNAME)`
++CFLAGS += `pkg-config --cflags $(NLLIBNAME)`
++
++ifeq ($(V),1)
++Q=
++NQ=@true
++else
++Q=@
++NQ=@echo
++endif
++
++$(REG_BIN):
++	$(NQ) '  EXIST ' $(REG_BIN)
++	$(NQ)
++	$(NQ) ERROR: The file: $(REG_BIN) is missing. You need this in place in order
++	$(NQ) to verify CRDA. You can get it from:
++	$(NQ)
++	$(NQ) $(REG_GIT)
++	$(NQ)
++	$(NQ) "Once cloned (no need to build) cp regulatory.bin to $(REG_BIN)"
++	$(NQ) "Use \"make noverify\" to disable verification"
++	$(NQ)
++	$(Q) exit 1
++
++keys-%.c: utils/key2pub.py $(wildcard $(PUBKEY_DIR)/*.pem)
++	$(NQ) '  GEN ' $@
++	$(NQ) '  Trusted pubkeys:' $(wildcard $(PUBKEY_DIR)/*.pem)
++	$(Q)./utils/key2pub.py --$* $(wildcard $(PUBKEY_DIR)/*.pem) $@
++
++%.o: %.c regdb.h
++	$(NQ) '  CC  ' $@
++	$(Q)$(CC) -c $(CPPFLAGS) $(CFLAGS) -o $@ $<
++
++crda: reglib.o crda.o
++	$(NQ) '  LD  ' $@
++	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS) $(NLLIBS)
++
++regdbdump: reglib.o regdbdump.o print-regdom.o
++	$(NQ) '  LD  ' $@
++	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
++
++intersect: reglib.o intersect.o print-regdom.o
++	$(NQ) '  LD  ' $@
++	$(Q)$(CC) $(CFLAGS) $(LDFLAGS) -o $@ $^ $(LDLIBS)
++
++verify: $(REG_BIN) regdbdump
++	$(NQ) '  CHK  $(REG_BIN)'
++	$(Q)./regdbdump $(REG_BIN) >/dev/null
++
++%.gz: %
++	@$(NQ) ' GZIP' $<
++	$(Q)gzip < $< > $@
++
++install: crda crda.8.gz regdbdump.8.gz
++	$(NQ) '  INSTALL  crda'
++	$(Q)$(MKDIR) $(DESTDIR)/$(SBINDIR)
++	$(Q)$(INSTALL) -m 755 -t $(DESTDIR)/$(SBINDIR) crda
++	$(NQ) '  INSTALL  regdbdump'
++	$(Q)$(INSTALL) -m 755 -t $(DESTDIR)/$(SBINDIR) regdbdump
++	$(NQ) '  INSTALL  $(UDEV_LEVEL)regulatory.rules'
++	$(Q)$(MKDIR) $(DESTDIR)/$(UDEV_RULE_DIR)/
++	@# This removes the old rule you may have, we were not
++	@# putting it in the right place.
++	$(Q)rm -f $(DESTDIR)/etc/udev/rules.d/regulatory.rules
++	$(Q)sed 's:$$(SBINDIR):$(SBINDIR):' udev/regulatory.rules > udev/regulatory.rules.parsed
++	$(Q)ln -sf regulatory.rules.parsed udev/$(UDEV_LEVEL)regulatory.rules
++	$(Q)$(INSTALL) -m 644 -t \
++		$(DESTDIR)/$(UDEV_RULE_DIR)/ \
++		udev/$(UDEV_LEVEL)regulatory.rules
++	$(NQ) '  INSTALL  crda.8.gz'
++	$(Q)$(MKDIR) $(DESTDIR)$(MANDIR)/man8/
++	$(Q)$(INSTALL) -m 644 -t $(DESTDIR)/$(MANDIR)/man8/ crda.8.gz
++	$(NQ) '  INSTALL  regdbdump.8.gz'
++	$(Q)$(INSTALL) -m 644 -t $(DESTDIR)/$(MANDIR)/man8/ regdbdump.8.gz
++
++clean:
++	$(Q)rm -f crda regdbdump intersect *.o *~ *.pyc keys-*.c *.gz \
++	udev/$(UDEV_LEVEL)regulatory.rules udev/regulatory.rules.parsed
+diff --git a/external/crda/README b/external/crda/README
+new file mode 100644
+index 0000000..f3ead48
+--- /dev/null
++++ b/external/crda/README
+@@ -0,0 +1,96 @@
++ Central Regulatory Domain Agent (CRDA)
++========================================
++
++This is the Central Regulatory Domain Agent for Linux. It serves one
++purpose: tell Linux kernel what to enforce. In essence it is a udev
++helper for communication between the kernel and userspace. You only
++need to run this manually for debugging purposes. For manual changing
++of regulatory domains use iw (iw reg set) or wpa_supplicant (feature
++yet to be added).
++
++ HOST REQUIREMENTS
++===================
++
++CRDA is provided as a binary file so all the host needs is libc/uclibc.
++You will also need udev and at least libnl1.
++
++ BUILD REQUIREMENTS
++====================
++
++The package build requirements currently are:
++
++ * python and the m2crypto package (python-m2crypto)
++ * libgcrypt or libssl (openssl) header files
++ * nl library and header files (libnl1 and libnl-dev)
++   available at git://git.kernel.org/pub/scm/libs/netlink/libnl.git
++ * RSA public key of John Linville, we include this as part of this package
++   so you do not need to install it. This RSA public key comes
++   from the wireless-regdb.git tree and we keep it up to date here.
++ * regulatory database, clone this tree:
++
++   git://git.kernel.org/pub/scm/linux/kernel/git/linville/wireless-regdb.git
++
++   and then stuff regulatory.bin (no need to build) provided there in
++   REG_BIN location specified in this Makefile. This regulatory.bin file
++   is only required to verify the CRDA built here can read its database file
++   which has been signed with the RSA private key.
++
++ CALLING CRDA -- UDEV
++======================
++
++Distributions can set up a udev rule to allow the kernel's regulatory
++domain change request to be reviewed by CRDA so CRDA can pass an
++appropriate regulatory domain. An example regulatory rule is provided
++with this package as regulatory.rules
++
++ OVERVIEW
++==========
++
++The database is maintained on the wireless-regdb.git tree. This git
++tree maintains a binary regulatory database file which is produced
++using its own ASCII db.txt into binary form for size efficiency. The
++contents of the binary database are then signed using the private key.
++
++CRDA will use regulatory.bin if its signature checks out with the public
++key provided. This will prevent us from using corrupted data (in case
++of hard drive failure) in the running kernel. This separation between
++CRDA and the regulatory database also allows us to provide regulatory
++updates on distributions without having to require an update on CRDA.
++
++Note that upon updating the regulatory database it is advised the
++user reboots or all the wireless modules get unloaded and reloaded.
++
++Under certain circumstances it may be desirable to have the regulatory
++agent accept multiple keys, this can be achieved by stuffing all the keys
++desired into pubkeys. Right now we only use John Linville's public key.
++
++ REGDB AUTHORS
++===============
++
++Authors of regulatory.bin (John Linville) first need a private key, which can
++be generated with something like this:
++
++	openssl genrsa -out your.key.priv.pem 2048
++
++You'll then need to generate the public key and publish it. You
++can generate it as follows:
++
++	openssl rsa -in your.key.priv.pem -out your.key.pub.pem -pubout -outform PEM
++
++Then with this key you can generate regulatory.bin files like this:
++
++	./utils/db2bin.py regulatory.bin db.txt your.key.priv.pem
++
++ MAGIC PATTERN
++===============
++
++Use the following magic(5) pattern to recognise CRDA binary regulatory
++database files:
++
++---- %< ----
++# CRDA Regulatory database file
++# http://git.kernel.org/?p=linux/kernel/git/mcgrof/crda.git;a=summary
++# (see regdb.h)
++0	belong		0x52474442	CRDA regulatory database file
++>4	belong		19		(Version 1)
++---- >% ----
+diff --git a/external/crda/crda.8 b/external/crda/crda.8
+new file mode 100644
+index 0000000..d45af30
+--- /dev/null
++++ b/external/crda/crda.8
+@@ -0,0 +1,85 @@
++.TH CRDA 8 "23 January 2009" "crda" "Linux"
++.SH NAME
++crda \- send to the kernel a wireless regulatory domain for a given ISO / IEC 3166 alpha2
++.SH SYNOPSIS
++
++.ad l
++.in +8
++.ti -8
++.B crda
++
++.ad l
++.in +8
++.ti -8
++
++.SS
++.SH Description
++.B crda
++is the Linux wireless central regulatory domain agent.
++.B crda
++is intended to be used by
++.B udev
++scripts and should not be run manually unless debugging udev
++scripts.
++.B crda
++is triggered to run by the kernel by sending a
++.B udev
++event upon a new regulatory domain change. Regulatory domain
++changes are triggered by the wireless kernel subsystem (upon initialization
++and on reception of country IEs), wireless drivers, or
++userspace (see 
++.B iw
++). Upon a regulatory domain change the kernel sends a udev change event
++for the regulatory platform. The kernel ignores regulatory domains sent
++to it if it does not expect them. The regulatory domain is read by crda
++from the
++.B regulatory.bin
++file.
++
++.SS
++.SH RSA Digital Signature
++If built with openssl or gcrypt support
++.B crda
++will have embedded
++into it an RSA digital signature which will prevent it from reading
++corrupted or non-authored
++.B regulatory.bin
++files. Authorship is respected by the RSA public key packed into
++.B crda.
++.I This
++specific
++.B crda
++package has been built with an RSA public key from
++.I John Linville (the Linux wireless kernel maintainer)
++and as such will only read
++.B regulatory.bin
++files signed by him. For further information see the
++.B regulatory.bin
++man page.
++
++.SS
++.SH UDEV RULE
++A udev regulatory rule must be put in place
++in order to receive and parse udev events from the kernel in order to get
++udev to call crda with the passed ISO / IEC 3166 alpha2 country code.
++An example udev rule which can be used (usually in
++.B /lib/udev/rules.d/85-regulatory.rules
++):
++
++.I KERNEL=="regulatory*", ACTION=="change", SUBSYSTEM=="platform", RUN+="/sbin/crda"
++
++.SS
++.SH Environment variable
++Set the
++.B COUNTRY
++environment variable with a specific ISO / IEC 3166 alpha2 country code
++and then run
++.B crda
++without arguments. This will send a regulatory domain for that alpha2
++to the kernel.
++
++.SH SEE ALSO
++.BR iw (8)
++.BR regulatory.bin (5)
++
++.BR http://wireless.kernel.org/en/developers/Regulatory/
+diff --git a/external/crda/crda.c b/external/crda/crda.c
+new file mode 100644
+index 0000000..592e5f4
+--- /dev/null
++++ b/external/crda/crda.c
+@@ -0,0 +1,337 @@
++/*
++ * Central Regulatory Domain Agent for Linux
++ *
++ * Userspace helper which sends regulatory domains to Linux via nl80211
++ */
++
++#include <errno.h>
++#include <stdio.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <arpa/inet.h>
++
++#include <netlink/genl/genl.h>
++#include <netlink/genl/family.h>
++#include <netlink/genl/ctrl.h>
++#include <netlink/msg.h>
++#include <netlink/attr.h>
++#include "nl80211.h"
++
++#include "regdb.h"
++#include "reglib.h"
++
++#ifndef CONFIG_LIBNL20
++/* libnl 2.0 compatibility code */
++static inline struct nl_handle *nl_socket_alloc(void)
++{
++       return nl_handle_alloc();
++}
++
++static inline void nl_socket_free(struct nl_handle *h)
++{
++       nl_handle_destroy(h);
++}
++
++static inline int __genl_ctrl_alloc_cache(struct nl_handle *h, struct nl_cache **cache)
++{
++       struct nl_cache *tmp = genl_ctrl_alloc_cache(h);
++       if (!tmp)
++               return -ENOMEM;
++       *cache = tmp;
++       return 0;
++}
++
++#define genl_ctrl_alloc_cache __genl_ctrl_alloc_cache
++#define nl_sock nl_handle
++#endif /* CONFIG_LIBNL20 */
++
++struct nl80211_state {
++	struct nl_sock *nl_sock;
++	struct nl_cache *nl_cache;
++	struct genl_family *nl80211;
++};
++
++static int nl80211_init(struct nl80211_state *state)
++{
++	int err;
++
++	state->nl_sock = nl_socket_alloc();
++	if (!state->nl_sock) {
++		fprintf(stderr, "Failed to allocate netlink sock.\n");
++		return -ENOMEM;
++	}
++
++	if (genl_connect(state->nl_sock)) {
++		fprintf(stderr, "Failed to connect to generic netlink.\n");
++		err = -ENOLINK;
++		goto out_sock_destroy;
++	}
++
++	if (genl_ctrl_alloc_cache(state->nl_sock, &state->nl_cache)) {
++		fprintf(stderr, "Failed to allocate generic netlink cache.\n");
++		err = -ENOMEM;
++		goto out_sock_destroy;
++	}
++
++	state->nl80211 = genl_ctrl_search_by_name(state->nl_cache, "nl80211");
++	if (!state->nl80211) {
++		fprintf(stderr, "nl80211 not found.\n");
++		err = -ENOENT;
++		goto out_cache_free;
++	}
++
++	return 0;
++
++ out_cache_free:
++	nl_cache_free(state->nl_cache);
++ out_sock_destroy:
++	nl_socket_free(state->nl_sock);
++	return err;
++}
++
++static void nl80211_cleanup(struct nl80211_state *state)
++{
++	genl_family_put(state->nl80211);
++	nl_cache_free(state->nl_cache);
++	nl_socket_free(state->nl_sock);
++}
++
++static int reg_handler(struct nl_msg __attribute__((unused)) *msg,
++			void __attribute__((unused)) *arg)
++{
++	return NL_SKIP;
++}
++
++static int wait_handler(struct nl_msg __attribute__((unused)) *msg, void *arg)
++{
++	int *finished = arg;
++	*finished = 1;
++	return NL_STOP;
++}
++
++static int error_handler(struct sockaddr_nl __attribute__((unused)) *nla,
++			    struct nlmsgerr *err,
++			    void __attribute__((unused)) *arg)
++{
++	fprintf(stderr, "nl80211 error %d\n", err->error);
++	exit(err->error);
++}
++
++static int put_reg_rule(__u8 *db, int dblen, __be32 ruleptr, struct nl_msg *msg)
++{
++	struct regdb_file_reg_rule *rule;
++	struct regdb_file_freq_range *freq;
++	struct regdb_file_power_rule *power;
++
++	rule  = crda_get_file_ptr(db, dblen, sizeof(*rule), ruleptr);
++	freq  = crda_get_file_ptr(db, dblen, sizeof(*freq), rule->freq_range_ptr);
++	power = crda_get_file_ptr(db, dblen, sizeof(*power), rule->power_rule_ptr);
++
++	NLA_PUT_U32(msg, NL80211_ATTR_REG_RULE_FLAGS,		ntohl(rule->flags));
++	NLA_PUT_U32(msg, NL80211_ATTR_FREQ_RANGE_START,		ntohl(freq->start_freq));
++	NLA_PUT_U32(msg, NL80211_ATTR_FREQ_RANGE_END,		ntohl(freq->end_freq));
++	NLA_PUT_U32(msg, NL80211_ATTR_FREQ_RANGE_MAX_BW,	ntohl(freq->max_bandwidth));
++	NLA_PUT_U32(msg, NL80211_ATTR_POWER_RULE_MAX_ANT_GAIN,	ntohl(power->max_antenna_gain));
++	NLA_PUT_U32(msg, NL80211_ATTR_POWER_RULE_MAX_EIRP,	ntohl(power->max_eirp));
++
++	return 0;
++
++nla_put_failure:
++	return -1;
++}
++
++int main(int argc, char **argv)
++{
++	int fd = -1;
++	struct stat stat;
++	__u8 *db;
++	struct regdb_file_header *header;
++	struct regdb_file_reg_country *countries;
++	int dblen, siglen, num_countries, i, j, r;
++	char alpha2[2];
++	char *env_country;
++	struct nl80211_state nlstate;
++	struct nl_cb *cb = NULL;
++	struct nl_msg *msg;
++	int found_country = 0;
++	int finished = 0;
++
++	struct regdb_file_reg_rules_collection *rcoll;
++	struct regdb_file_reg_country *country;
++	struct nlattr *nl_reg_rules;
++	int num_rules;
++
++	const char *regdb_paths[] = {
++		"/usr/local/lib/crda/regulatory.bin", /* Users/preloads can override */
++		"/usr/lib/crda/regulatory.bin", /* General distribution package usage */
++		"/lib/crda/regulatory.bin", /* alternative for distributions */
++		"/system/lib/crda/regulatory.bin", /* alternative for android */
++		NULL
++	};
++	const char **regdb = regdb_paths;
++
++	if (argc != 1) {
++		fprintf(stderr, "Usage: %s\n", argv[0]);
++		return -EINVAL;
++	}
++
++	env_country = getenv("COUNTRY");
++	if (!env_country) {
++		fprintf(stderr, "COUNTRY environment variable not set.\n");
++		return -EINVAL;
++	}
++
++	if (!is_valid_regdom(env_country)) {
++		fprintf(stderr, "COUNTRY environment variable must be an "
++			"ISO ISO 3166-1-alpha-2 (uppercase) or 00\n");
++		return -EINVAL;
++	}
++
++	memcpy(alpha2, env_country, 2);
++
++	while (*regdb != NULL) {
++		fd = open(*regdb, O_RDONLY);
++		if (fd >= 0)
++			break;
++		regdb++;
++	}
++	if (fd < 0) {
++		perror("failed to open db file");
++		return -ENOENT;
++	}
++
++	if (fstat(fd, &stat)) {
++		perror("failed to fstat db file");
++		return -EIO;
++	}
++
++	dblen = stat.st_size;
++
++	db = mmap(NULL, dblen, PROT_READ, MAP_PRIVATE, fd, 0);
++	if (db == MAP_FAILED) {
++		perror("failed to mmap db file");
++		return -EIO;
++	}
++
++	/* db file starts with a struct regdb_file_header */
++	header = crda_get_file_ptr(db, dblen, sizeof(*header), 0);
++
++	if (ntohl(header->magic) != REGDB_MAGIC) {
++		fprintf(stderr, "Invalid database magic\n");
++		return -EINVAL;
++	}
++
++	if (ntohl(header->version) != REGDB_VERSION) {
++		fprintf(stderr, "Invalid database version\n");
++		return -EINVAL;
++	}
++
++	siglen = ntohl(header->signature_length);
++	/* adjust dblen so later sanity checks don't run into the signature */
++	dblen -= siglen;
++
++	if (dblen <= (int)sizeof(*header)) {
++		fprintf(stderr, "Invalid signature length %d\n", siglen);
++		return -EINVAL;
++	}
++
++	/* verify signature */
++	if (!crda_verify_db_signature(db, dblen, siglen))
++		return -EINVAL;
++
++	num_countries = ntohl(header->reg_country_num);
++	countries = crda_get_file_ptr(db, dblen,
++			sizeof(struct regdb_file_reg_country) * num_countries,
++			header->reg_country_ptr);
++
++	for (i = 0; i < num_countries; i++) {
++		country = countries + i;
++		if (memcmp(country->alpha2, alpha2, 2) == 0) {
++			found_country = 1;
++			break;
++		}
++	}
++
++	if (!found_country) {
++		fprintf(stderr, "No country match in regulatory database.\n");
++		return -1;
++	}
++
++	r = nl80211_init(&nlstate);
++	if (r)
++		return -EIO;
++
++	msg = nlmsg_alloc();
++	if (!msg) {
++		fprintf(stderr, "Failed to allocate netlink message.\n");
++		r = -1;
++		goto out;
++	}
++
++	genlmsg_put(msg, 0, 0, genl_family_get_id(nlstate.nl80211), 0,
++		0, NL80211_CMD_SET_REG, 0);
++
++	rcoll = crda_get_file_ptr(db, dblen, sizeof(*rcoll),
++				country->reg_collection_ptr);
++	num_rules = ntohl(rcoll->reg_rule_num);
++	/* re-get pointer with sanity checking for num_rules */
++	rcoll = crda_get_file_ptr(db, dblen,
++				sizeof(*rcoll) + num_rules * sizeof(__be32),
++				country->reg_collection_ptr);
++
++	NLA_PUT_STRING(msg, NL80211_ATTR_REG_ALPHA2, (char *) country->alpha2);
++
++	nl_reg_rules = nla_nest_start(msg, NL80211_ATTR_REG_RULES);
++	if (!nl_reg_rules) {
++		r = -1;
++		goto nla_put_failure;
++	}
++
++	for (j = 0; j < num_rules; j++) {
++		struct nlattr *nl_reg_rule;
++		nl_reg_rule = nla_nest_start(msg, i);
++		if (!nl_reg_rule)
++			goto nla_put_failure;
++
++		r = put_reg_rule(db, dblen, rcoll->reg_rule_ptrs[j], msg);
++		if (r)
++			goto nla_put_failure;
++
++		nla_nest_end(msg, nl_reg_rule);
++	}
++
++	nla_nest_end(msg, nl_reg_rules);
++
++	cb = nl_cb_alloc(NL_CB_CUSTOM);
++	if (!cb)
++		goto cb_out;
++
++	r = nl_send_auto_complete(nlstate.nl_sock, msg);
++
++	if (r < 0) {
++		fprintf(stderr, "Failed to send regulatory request: %d\n", r);
++		goto cb_out;
++	}
++
++	nl_cb_set(cb, NL_CB_VALID, NL_CB_CUSTOM, reg_handler, NULL);
++	nl_cb_set(cb, NL_CB_ACK, NL_CB_CUSTOM, wait_handler, &finished);
++	nl_cb_err(cb, NL_CB_CUSTOM, error_handler, NULL);
++
++	if (!finished) {
++		r = nl_wait_for_ack(nlstate.nl_sock);
++		if (r < 0) {
++			fprintf(stderr, "Failed to set regulatory domain: "
++				"%d\n", r);
++			goto cb_out;
++		}
++	}
++
++cb_out:
++	nl_cb_put(cb);
++nla_put_failure:
++	nlmsg_free(msg);
++out:
++	nl80211_cleanup(&nlstate);
++	return r;
++}
+diff --git a/external/crda/crda.spec b/external/crda/crda.spec
+new file mode 100644
+index 0000000..f44a3e5
+--- /dev/null
++++ b/external/crda/crda.spec
+@@ -0,0 +1,32 @@
++Summary: Linux central regulatory domain agent
++Name: crda
++Version: 1.0.1
++Release: 1
++License: ISC
++Group: System Enviroment/Base
++Source: http://wireless.kernel.org/download/crda/crda-%version.tar.bz2
++URL: http://wireless.kernel.org/en/developers/Regulatory/
++Packager: Luis R. Rodriguez <mcgrof@gmail.com>
++BuildRoot : /var/tmp/%{name}-buildroot
++Requires: libnl, libgcrypt
++BuildRequires: libnl-devel, gcc, wireless-regdb, libgcrypt-devel, m2crypto
++
++%description
++This package provides CRDA to be used by the new Linux kernel
++wireless subsystem to query from userspace regulatory domains. For
++more information see:
++http://wireless.kernel.org/en/developers/Regulatory/
++
++%prep
++%setup
++%build
++make DESTDIR=%buildroot
++%install
++make install DESTDIR=%buildroot
++%files
++%doc README LICENSE
++/sbin/crda
++/sbin/regdbdump
++/lib/udev/rules.d/85-regulatory.rules
++/usr/share/man/man8/crda.8.gz
++/usr/share/man/man8/regdbdump.8.gz
+diff --git a/external/crda/debian-example/changelog b/external/crda/debian-example/changelog
+new file mode 100644
+index 0000000..b083b42
+--- /dev/null
++++ b/external/crda/debian-example/changelog
+@@ -0,0 +1,11 @@
++crda (1.0.1-1) unstable; urgency=low
++
++  * Compiles nicely on # CPUs > 1
++
++ -- Luis R. Rodriguez <mcgrof@gmail.com>  Sat, 24 Jan 2009 16:00:00 +0100
++
++crda (1.0.0-1) unstable; urgency=low
++
++  * Initial release
++
++ -- Luis R. Rodriguez <mcgrof@gmail.com>  Fri, 23 Jan 2009 16:00:00 +0100
+diff --git a/external/crda/debian-example/compat b/external/crda/debian-example/compat
+new file mode 100644
+index 0000000..7ed6ff8
+--- /dev/null
++++ b/external/crda/debian-example/compat
+@@ -0,0 +1 @@
++5
+diff --git a/external/crda/debian-example/control b/external/crda/debian-example/control
+new file mode 100644
+index 0000000..eba7c0c
+--- /dev/null
++++ b/external/crda/debian-example/control
+@@ -0,0 +1,17 @@
++Source: crda
++Section: admin
++Priority: optional
++Maintainer: Luis R. Rodriguez <mcgrof@gmail.com>
++Build-Depends: cdbs, debhelper (>= 5), gcc, wireless-regdb, libgcrypt11-dev, python-m2crypto, libnl1
++Standards-Version: 3.7.3
++
++Package: crda
++Architecture: all
++Depends: udev, libgcrypt11, libnl1
++Suggests: iw
++Description: Linux wireless central regulatory domain agent
++ This package provides CRDA to be used by the new Linux kernel wireless
++ subsystem to query from userspace regulatory domains. For more information
++ see:
++ .
++ http://wireless.kernel.org/en/developers/Regulatory/
+diff --git a/external/crda/debian-example/copyright b/external/crda/debian-example/copyright
+new file mode 100644
+index 0000000..85d6068
+--- /dev/null
++++ b/external/crda/debian-example/copyright
+@@ -0,0 +1,21 @@
++This package was debianized by Luis Rodriguez <mcgrof@gmail.com> on
++Thu, 22 Jan 2009 16:00:00 +0100.
++
++The crda packages was downloaded from <http://wireless.kernel.org/download/crda/>
++
++Copyright (c) 2008, Luis R. Rodriguez <mcgrof@gmail.com>
++Copyright (c) 2008, Johannes Berg <johannes@sipsolutions.net>
++Copyright (c) 2008, Michael Green <Michael.Green@Atheros.com>
++
++Permission to use, copy, modify, and/or distribute this software for any
++purpose with or without fee is hereby granted, provided that the above
++copyright notice and this permission notice appear in all copies.
++
++THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++
+diff --git a/external/crda/debian-example/docs b/external/crda/debian-example/docs
+new file mode 100644
+index 0000000..e845566
+--- /dev/null
++++ b/external/crda/debian-example/docs
+@@ -0,0 +1 @@
++README
+diff --git a/external/crda/debian-example/rules b/external/crda/debian-example/rules
+new file mode 100755
+index 0000000..bc42902
+--- /dev/null
++++ b/external/crda/debian-example/rules
+@@ -0,0 +1,8 @@
++#!/usr/bin/make -f
++  
++include /usr/share/cdbs/1/rules/debhelper.mk
++include /usr/share/cdbs/1/class/makefile.mk
++
++DEB_MAKE_BUILD_TARGET	:= all
++DEB_MAKE_ENVVARS	:= DESTDIR=debian/$(cdbs_curpkg)/
++DEB_MAKE_INSTALL_TARGET := install DESTDIR=$(DEB_DESTDIR)
+diff --git a/external/crda/intersect.c b/external/crda/intersect.c
+new file mode 100644
+index 0000000..2f4d416
+--- /dev/null
++++ b/external/crda/intersect.c
+@@ -0,0 +1,341 @@
++#include <errno.h>
++#include <stdlib.h>
++#include <stdio.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <arpa/inet.h> /* ntohl */
++#include <string.h>
++
++#include "reglib.h"
++
++/* Intersects regulatory domains, this will skip any regulatory marked with
++ * an alpha2 of '00', which is used to indicate a regulatory domain */
++
++#define BUG_ON(foo) do { \
++	if (foo) { \
++		printf("BUG\n"); \
++		exit(-1); \
++	} \
++	} while (0)
++
++/* Sanity check on a regulatory rule */
++static int is_valid_reg_rule(const struct ieee80211_reg_rule *rule)
++{
++	const struct ieee80211_freq_range *freq_range = &rule->freq_range;
++	__u32 freq_diff;
++
++	if (freq_range->start_freq_khz == 0 || freq_range->end_freq_khz == 0)
++		return 0;
++
++	if (freq_range->start_freq_khz > freq_range->end_freq_khz)
++		return 0;
++
++	freq_diff = freq_range->end_freq_khz - freq_range->start_freq_khz;
++
++	if (freq_diff == 0 || freq_range->max_bandwidth_khz > freq_diff)
++		return 0;
++
++	return 1;
++}
++
++/* Helper for regdom_intersect(), this does the real
++ * mathematical intersection fun */
++static int reg_rules_intersect(
++	struct ieee80211_reg_rule *rule1,
++	struct ieee80211_reg_rule *rule2,
++	struct ieee80211_reg_rule *intersected_rule)
++{
++	struct ieee80211_freq_range *freq_range1, *freq_range2, *freq_range;
++	struct ieee80211_power_rule *power_rule1, *power_rule2, *power_rule;
++	__u32 freq_diff;
++
++	freq_range1 = &rule1->freq_range;
++	freq_range2 = &rule2->freq_range;
++	freq_range = &intersected_rule->freq_range;
++
++	power_rule1 = &rule1->power_rule;
++	power_rule2 = &rule2->power_rule;
++	power_rule = &intersected_rule->power_rule;
++
++	freq_range->start_freq_khz = max(freq_range1->start_freq_khz,
++		freq_range2->start_freq_khz);
++	freq_range->end_freq_khz = min(freq_range1->end_freq_khz,
++		freq_range2->end_freq_khz);
++	freq_range->max_bandwidth_khz = min(freq_range1->max_bandwidth_khz,
++		freq_range2->max_bandwidth_khz);
++
++	freq_diff = freq_range->end_freq_khz - freq_range->start_freq_khz;
++	if (freq_range->max_bandwidth_khz > freq_diff)
++		freq_range->max_bandwidth_khz = freq_diff;
++
++	power_rule->max_eirp = min(power_rule1->max_eirp,
++		power_rule2->max_eirp);
++	power_rule->max_antenna_gain = min(power_rule1->max_antenna_gain,
++		power_rule2->max_antenna_gain);
++
++	intersected_rule->flags = (rule1->flags | rule2->flags);
++
++	if (!is_valid_reg_rule(intersected_rule))
++		return -EINVAL;
++
++	return 0;
++}
++
++/**
++ * regdom_intersect - do the intersection between two regulatory domains
++ * @rd1: first regulatory domain
++ * @rd2: second regulatory domain
++ *
++ * Use this function to get the intersection between two regulatory domains.
++ * Once completed we will mark the alpha2 for the rd as intersected, "98",
++ * as no one single alpha2 can represent this regulatory domain.
++ *
++ * Returns a pointer to the regulatory domain structure which will hold the
++ * resulting intersection of rules between rd1 and rd2. We will
++ * malloc() this structure for you.
++ */
++static struct ieee80211_regdomain *regdom_intersect(
++	struct ieee80211_regdomain *rd1,
++	struct ieee80211_regdomain *rd2)
++{
++	int r, size_of_regd;
++	unsigned int x, y;
++	unsigned int num_rules = 0, rule_idx = 0;
++	struct ieee80211_reg_rule *rule1, *rule2, *intersected_rule;
++	struct ieee80211_regdomain *rd;
++	/* This is just a dummy holder to help us count */
++	struct ieee80211_reg_rule irule;
++
++	/* Uses the stack temporarily for counter arithmetic */
++	intersected_rule = &irule;
++
++	memset(intersected_rule, 0, sizeof(struct ieee80211_reg_rule));
++
++	if (!rd1 || !rd2) {
++		fprintf(stderr, "rd1 or or rd2 is null\n");
++		return NULL;
++	}
++
++	/* First we get a count of the rules we'll need, then we actually
++	 * build them. This is to so we can malloc() and free() a
++	 * regdomain once. The reason we use reg_rules_intersect() here
++	 * is it will return -EINVAL if the rule computed makes no sense.
++	 * All rules that do check out OK are valid. */
++
++	for (x = 0; x < rd1->n_reg_rules; x++) {
++		rule1 = &rd1->reg_rules[x];
++		for (y = 0; y < rd2->n_reg_rules; y++) {
++			rule2 = &rd2->reg_rules[y];
++			if (!reg_rules_intersect(rule1, rule2,
++					intersected_rule))
++				num_rules++;
++			memset(intersected_rule, 0,
++					sizeof(struct ieee80211_reg_rule));
++		}
++	}
++
++	if (!num_rules) {
++		fprintf(stderr, "error: num_rules == 0\n");
++		return NULL;
++	}
++
++	size_of_regd = sizeof(struct ieee80211_regdomain) +
++		((num_rules + 1) * sizeof(struct ieee80211_reg_rule));
++
++	rd = malloc(size_of_regd);
++	if (!rd) {
++		fprintf(stderr, "no memory left\n");
++		return NULL;
++	}
++
++	memset(rd, 0, size_of_regd);
++
++	for (x = 0; x < rd1->n_reg_rules; x++) {
++		rule1 = &rd1->reg_rules[x];
++		for (y = 0; y < rd2->n_reg_rules; y++) {
++			rule2 = &rd2->reg_rules[y];
++			/* This time around instead of using the stack lets
++			 * write to the target rule directly saving ourselves
++			 * a memcpy() */
++			intersected_rule = &rd->reg_rules[rule_idx];
++			r = reg_rules_intersect(rule1, rule2,
++				intersected_rule);
++			if (r)
++				continue;
++			rule_idx++;
++		}
++	}
++
++	if (rule_idx != num_rules) {
++		fprintf(stderr, "Error while doing regdom interesection :(\n");
++		free(rd);
++		return NULL;
++	}
++
++	rd->n_reg_rules = num_rules;
++	rd->alpha2[0] = '9';
++	rd->alpha2[1] = '9';
++
++	return rd;
++}
++
++int main(int argc, char **argv)
++{
++	int fd;
++	struct stat stat;
++	__u8 *db;
++	struct regdb_file_header *header;
++	struct regdb_file_reg_country *countries;
++	int dblen, siglen, num_countries, i, r = 0;
++	struct ieee80211_regdomain *prev_world = NULL, *rd = NULL, *world = NULL;
++	int intersected = 0;
++
++	if (argc != 2) {
++		fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
++		return 2;
++	}
++
++	fd = open(argv[1], O_RDONLY);
++	if (fd < 0) {
++		perror("failed to open db file");
++		return 2;
++	}
++
++	if (fstat(fd, &stat)) {
++		perror("failed to fstat db file");
++		return 2;
++	}
++
++	dblen = stat.st_size;
++
++	db = mmap(NULL, dblen, PROT_READ, MAP_PRIVATE, fd, 0);
++	if (db == MAP_FAILED) {
++		perror("failed to mmap db file");
++		return 2;
++	}
++
++	header = crda_get_file_ptr(db, dblen, sizeof(*header), 0);
++
++	if (ntohl(header->magic) != REGDB_MAGIC) {
++		fprintf(stderr, "Invalid database magic\n");
++		return 2;
++	}
++
++	if (ntohl(header->version) != REGDB_VERSION) {
++		fprintf(stderr, "Invalid database version\n");
++		return 2;
++	}
++
++	siglen = ntohl(header->signature_length);
++	/* adjust dblen so later sanity checks don't run into the signature */
++	dblen -= siglen;
++
++	if (dblen <= (int)sizeof(*header)) {
++		fprintf(stderr, "Invalid signature length %d\n", siglen);
++		return 2;
++	}
++
++	/* verify signature */
++	if (!crda_verify_db_signature(db, dblen, siglen))
++		return -EINVAL;
++
++	num_countries = ntohl(header->reg_country_num);
++
++	if (num_countries <= 0)
++		return 0;
++
++	countries = crda_get_file_ptr(db, dblen,
++			sizeof(struct regdb_file_reg_country) * num_countries,
++			header->reg_country_ptr);
++
++	/* We intersect only when we have to rd structures ready */
++	for (i = 0; i < num_countries; i++) {
++		struct regdb_file_reg_country *country = countries + i;
++
++		if (is_world_regdom((const char *) country->alpha2))
++			continue;
++
++		/* Gets the rd for the current country */
++		rd = country2rd(db, dblen, country);
++		if (!rd) {
++			r = -ENOMEM;
++			fprintf(stderr, "Could not covert country "
++				"(%.2s) to rd\n", country->alpha2);
++			goto out;
++		}
++
++		if (num_countries == 1) {
++			world = rd;
++			rd = NULL;
++			break;
++		}
++
++		if (!prev_world) {
++			prev_world = rd;
++			continue;
++		}
++
++
++		if (world) {
++			free(prev_world);
++			prev_world = world;
++		}
++
++		world = regdom_intersect(prev_world, rd);
++		if (!world) {
++			/* Could be something else but we'll live with this */
++			r = -ENOMEM;
++			if (intersected)
++				fprintf(stderr, "Could not intersect world "
++					"with country (%.2s)\n",
++					rd->alpha2);
++			else
++				fprintf(stderr, "Could not intersect country (%.2s) "
++					"with country (%.2s)\n",
++					prev_world->alpha2,
++					rd->alpha2);
++			goto out;
++		}
++
++		if (intersected)
++			/* Use UTF-8 Intersection symbol ? (0xE2,0x88,0xA9) :) */
++			printf("WW (%d) intersect %c%c (%d) ==> %d rules\n",
++				prev_world->n_reg_rules,
++				rd->alpha2[0],
++				rd->alpha2[1],
++				rd->n_reg_rules,
++				world->n_reg_rules);
++		else
++			printf("%c%c (%d) intersect %c%c (%d) ==> %d rules\n",
++				prev_world->alpha2[0],
++				prev_world->alpha2[1],
++				prev_world->n_reg_rules,
++				rd->alpha2[0],
++				rd->alpha2[1],
++				rd->n_reg_rules,
++				world->n_reg_rules);
++		intersected++;
++	}
++
++	if (intersected > 1)
++		printf("%d regulatory domains intersected\n", intersected);
++	else
++		printf("Only one intersection completed\n");
++
++	/* Tada! */
++	printf("== World regulatory domain: ==\n");
++	print_regdom(world);
++
++out:
++	if (!intersected) {
++		free(world);
++		return r;
++	}
++	if (intersected > 1) {
++		free(rd);
++		free(prev_world);
++	}
++	free(world);
++	return r;
++}
+diff --git a/external/crda/keys-ssl.c b/external/crda/keys-ssl.c
+new file mode 100644
+index 0000000..763702f
+--- /dev/null
++++ b/external/crda/keys-ssl.c
+@@ -0,0 +1,40 @@
++#include <openssl/bn.h>
++
++static BN_ULONG e_0[1] = {
++	0x00010001, 
++};
++
++static BN_ULONG n_0[64] = {
++	0x16a0d8e1, 0x63a27054, 0xc8ba757b, 0xdc9fca11, 
++	0xcbcb35e3, 0xb9c06510, 0xba941433, 0x39e3dfeb, 
++	0x6c1fce9d, 0x7bbae38a, 0xfefabba7, 0x205a5a73, 
++	0x97839a2e, 0x53ea3e5a, 0x61dc0170, 0xfec8f5b6, 
++	0xd29a1004, 0xefe311d8, 0xa5156bb8, 0x8c6a92d0, 
++	0x7a6eb5cc, 0x9067cc76, 0x0bd5b1ff, 0xd103580b, 
++	0x8f3a2daf, 0x4a563e84, 0x46b0943e, 0xacd7cadb, 
++	0xebd1e198, 0x5fabb688, 0x5916f173, 0x7e70c1d3, 
++	0x5d6ca84e, 0xaaa8acc8, 0xe20fd4dc, 0x1685c157, 
++	0xad933f64, 0xf9e9c9c7, 0xc5f59824, 0xbe6272ed, 
++	0x53447bd1, 0x585d9a7d, 0x5b3bc30d, 0x011a5b3f, 
++	0xffbbf0e9, 0xf312b966, 0x482c131b, 0x2203fb37, 
++	0x0dc38eab, 0x3e7c157d, 0xb39fcc8d, 0xb04de1d6, 
++	0x07fc0d84, 0x4d9f0137, 0xe13b5ac5, 0xb075a241, 
++	0x8e56e153, 0x0a9a9d48, 0xf97054eb, 0xf2cff393, 
++	0x376024f2, 0x2a2ead68, 0x88d35dce, 0xd6579971, 
++};
++
++
++struct pubkey {
++	struct bignum_st e, n;
++};
++
++#define KEY(data) {				\
++	.d = data,				\
++	.top = sizeof(data)/sizeof(data[0]),	\
++}
++
++#define KEYS(e,n)	{ KEY(e), KEY(n), }
++
++static struct pubkey keys[] = {
++	KEYS(e_0, n_0),
++};
+diff --git a/external/crda/nl80211.h b/external/crda/nl80211.h
+new file mode 100644
+index 0000000..04d4516
+--- /dev/null
++++ b/external/crda/nl80211.h
+@@ -0,0 +1,783 @@
++#ifndef __LINUX_NL80211_H
++#define __LINUX_NL80211_H
++/*
++ * 802.11 netlink interface public header
++ *
++ * Copyright 2006, 2007, 2008 Johannes Berg <johannes@sipsolutions.net>
++ * Copyright 2008 Michael Wu <flamingice@sourmilk.net>
++ * Copyright 2008 Luis Carlos Cobo <luisca@cozybit.com>
++ * Copyright 2008 Michael Buesch <mb@bu3sch.de>
++ * Copyright 2008 Luis R. Rodriguez <lrodriguez@atheros.com>
++ * Copyright 2008 Jouni Malinen <jouni.malinen@atheros.com>
++ * Copyright 2008 Colin McCabe <colin@cozybit.com>
++ *
++ * Permission to use, copy, modify, and/or distribute this software for any
++ * purpose with or without fee is hereby granted, provided that the above
++ * copyright notice and this permission notice appear in all copies.
++ *
++ * THE SOFTWARE IS PROVIDED "AS IS" AND THE AUTHOR DISCLAIMS ALL WARRANTIES
++ * WITH REGARD TO THIS SOFTWARE INCLUDING ALL IMPLIED WARRANTIES OF
++ * MERCHANTABILITY AND FITNESS. IN NO EVENT SHALL THE AUTHOR BE LIABLE FOR
++ * ANY SPECIAL, DIRECT, INDIRECT, OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++ * WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN AN
++ * ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION, ARISING OUT OF
++ * OR IN CONNECTION WITH THE USE OR PERFORMANCE OF THIS SOFTWARE.
++ *
++ */
++
++/**
++ * DOC: Station handling
++ *
++ * Stations are added per interface, but a special case exists with VLAN
++ * interfaces. When a station is bound to an AP interface, it may be moved
++ * into a VLAN identified by a VLAN interface index (%NL80211_ATTR_STA_VLAN).
++ * The station is still assumed to belong to the AP interface it was added
++ * to.
++ *
++ * TODO: need more info?
++ */
++
++/**
++ * enum nl80211_commands - supported nl80211 commands
++ *
++ * @NL80211_CMD_UNSPEC: unspecified command to catch errors
++ *
++ * @NL80211_CMD_GET_WIPHY: request information about a wiphy or dump request
++ *	to get a list of all present wiphys.
++ * @NL80211_CMD_SET_WIPHY: set wiphy parameters, needs %NL80211_ATTR_WIPHY or
++ *	%NL80211_ATTR_IFINDEX; can be used to set %NL80211_ATTR_WIPHY_NAME,
++ *	%NL80211_ATTR_WIPHY_TXQ_PARAMS, %NL80211_ATTR_WIPHY_FREQ, and/or
++ *	%NL80211_ATTR_WIPHY_SEC_CHAN_OFFSET.
++ * @NL80211_CMD_NEW_WIPHY: Newly created wiphy, response to get request
++ *	or rename notification. Has attributes %NL80211_ATTR_WIPHY and
++ *	%NL80211_ATTR_WIPHY_NAME.
++ * @NL80211_CMD_DEL_WIPHY: Wiphy deleted. Has attributes
++ *	%NL80211_ATTR_WIPHY and %NL80211_ATTR_WIPHY_NAME.
++ *
++ * @NL80211_CMD_GET_INTERFACE: Request an interface's configuration;
++ *	either a dump request on a %NL80211_ATTR_WIPHY or a specific get
++ *	on an %NL80211_ATTR_IFINDEX is supported.
++ * @NL80211_CMD_SET_INTERFACE: Set type of a virtual interface, requires
++ *	%NL80211_ATTR_IFINDEX and %NL80211_ATTR_IFTYPE.
++ * @NL80211_CMD_NEW_INTERFACE: Newly created virtual interface or response
++ *	to %NL80211_CMD_GET_INTERFACE. Has %NL80211_ATTR_IFINDEX,
++ *	%NL80211_ATTR_WIPHY and %NL80211_ATTR_IFTYPE attributes. Can also
++ *	be sent from userspace to request creation of a new virtual interface,
++ *	then requires attributes %NL80211_ATTR_WIPHY, %NL80211_ATTR_IFTYPE and
++ *	%NL80211_ATTR_IFNAME.
++ * @NL80211_CMD_DEL_INTERFACE: Virtual interface was deleted, has attributes
++ *	%NL80211_ATTR_IFINDEX and %NL80211_ATTR_WIPHY. Can also be sent from
++ *	userspace to request deletion of a virtual interface, then requires
++ *	attribute %NL80211_ATTR_IFINDEX.
++ *
++ * @NL80211_CMD_GET_KEY: Get sequence counter information for a key specified
++ *	by %NL80211_ATTR_KEY_IDX and/or %NL80211_ATTR_MAC.
++ * @NL80211_CMD_SET_KEY: Set key attributes %NL80211_ATTR_KEY_DEFAULT or
++ *	%NL80211_ATTR_KEY_THRESHOLD.
++ * @NL80211_CMD_NEW_KEY: add a key with given %NL80211_ATTR_KEY_DATA,
++ *	%NL80211_ATTR_KEY_IDX, %NL80211_ATTR_MAC and %NL80211_ATTR_KEY_CIPHER
++ *	attributes.
++ * @NL80211_CMD_DEL_KEY: delete a key identified by %NL80211_ATTR_KEY_IDX
++ *	or %NL80211_ATTR_MAC.
++ *
++ * @NL80211_CMD_GET_BEACON: retrieve beacon information (returned in a
++ *	%NL80222_CMD_NEW_BEACON message)
++ * @NL80211_CMD_SET_BEACON: set the beacon on an access point interface
++ *	using the %NL80211_ATTR_BEACON_INTERVAL, %NL80211_ATTR_DTIM_PERIOD,
++ *	%NL80211_BEACON_HEAD and %NL80211_BEACON_TAIL attributes.
++ * @NL80211_CMD_NEW_BEACON: add a new beacon to an access point interface,
++ *	parameters are like for %NL80211_CMD_SET_BEACON.
++ * @NL80211_CMD_DEL_BEACON: remove the beacon, stop sending it
++ *
++ * @NL80211_CMD_GET_STATION: Get station attributes for station identified by
++ *	%NL80211_ATTR_MAC on the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_SET_STATION: Set station attributes for station identified by
++ *	%NL80211_ATTR_MAC on the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_NEW_STATION: Add a station with given attributes to the
++ *	the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_DEL_STATION: Remove a station identified by %NL80211_ATTR_MAC
++ *	or, if no MAC address given, all stations, on the interface identified
++ *	by %NL80211_ATTR_IFINDEX.
++ *
++ * @NL80211_CMD_GET_MPATH: Get mesh path attributes for mesh path to
++ * 	destination %NL80211_ATTR_MAC on the interface identified by
++ * 	%NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_SET_MPATH:  Set mesh path attributes for mesh path to
++ * 	destination %NL80211_ATTR_MAC on the interface identified by
++ * 	%NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_NEW_PATH: Add a mesh path with given attributes to the
++ *	the interface identified by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_DEL_PATH: Remove a mesh path identified by %NL80211_ATTR_MAC
++ *	or, if no MAC address given, all mesh paths, on the interface identified
++ *	by %NL80211_ATTR_IFINDEX.
++ * @NL80211_CMD_SET_BSS: Set BSS attributes for BSS identified by
++ *	%NL80211_ATTR_IFINDEX.
++ *
++ * @NL80211_CMD_SET_REG: Set current regulatory domain. CRDA sends this command
++ *	after being queried by the kernel. CRDA replies by sending a regulatory
++ *	domain structure which consists of %NL80211_ATTR_REG_ALPHA set to our
++ *	current alpha2 if it found a match. It also provides
++ * 	NL80211_ATTR_REG_RULE_FLAGS, and a set of regulatory rules. Each
++ * 	regulatory rule is a nested set of attributes  given by
++ * 	%NL80211_ATTR_REG_RULE_FREQ_[START|END] and
++ * 	%NL80211_ATTR_FREQ_RANGE_MAX_BW with an attached power rule given by
++ * 	%NL80211_ATTR_REG_RULE_POWER_MAX_ANT_GAIN and
++ * 	%NL80211_ATTR_REG_RULE_POWER_MAX_EIRP.
++ * @NL80211_CMD_REQ_SET_REG: ask the wireless core to set the regulatory domain
++ * 	to the the specified ISO/IEC 3166-1 alpha2 country code. The core will
++ * 	store this as a valid request and then query userspace for it.
++ *
++ * @NL80211_CMD_GET_MESH_PARAMS: Get mesh networking properties for the
++ *	interface identified by %NL80211_ATTR_IFINDEX
++ *
++ * @NL80211_CMD_SET_MESH_PARAMS: Set mesh networking properties for the
++ *      interface identified by %NL80211_ATTR_IFINDEX
++ *
++ * @NL80211_CMD_MAX: highest used command number
++ * @__NL80211_CMD_AFTER_LAST: internal use
++ */
++enum nl80211_commands {
++/* don't change the order or add anything inbetween, this is ABI! */
++	NL80211_CMD_UNSPEC,
++
++	NL80211_CMD_GET_WIPHY,		/* can dump */
++	NL80211_CMD_SET_WIPHY,
++	NL80211_CMD_NEW_WIPHY,
++	NL80211_CMD_DEL_WIPHY,
++
++	NL80211_CMD_GET_INTERFACE,	/* can dump */
++	NL80211_CMD_SET_INTERFACE,
++	NL80211_CMD_NEW_INTERFACE,
++	NL80211_CMD_DEL_INTERFACE,
++
++	NL80211_CMD_GET_KEY,
++	NL80211_CMD_SET_KEY,
++	NL80211_CMD_NEW_KEY,
++	NL80211_CMD_DEL_KEY,
++
++	NL80211_CMD_GET_BEACON,
++	NL80211_CMD_SET_BEACON,
++	NL80211_CMD_NEW_BEACON,
++	NL80211_CMD_DEL_BEACON,
++
++	NL80211_CMD_GET_STATION,
++	NL80211_CMD_SET_STATION,
++	NL80211_CMD_NEW_STATION,
++	NL80211_CMD_DEL_STATION,
++
++	NL80211_CMD_GET_MPATH,
++	NL80211_CMD_SET_MPATH,
++	NL80211_CMD_NEW_MPATH,
++	NL80211_CMD_DEL_MPATH,
++
++	NL80211_CMD_SET_BSS,
++
++	NL80211_CMD_SET_REG,
++	NL80211_CMD_REQ_SET_REG,
++
++	NL80211_CMD_GET_MESH_PARAMS,
++	NL80211_CMD_SET_MESH_PARAMS,
++
++	/* add new commands above here */
++
++	/* used to define NL80211_CMD_MAX below */
++	__NL80211_CMD_AFTER_LAST,
++	NL80211_CMD_MAX = __NL80211_CMD_AFTER_LAST - 1
++};
++
++/*
++ * Allow user space programs to use #ifdef on new commands by defining them
++ * here
++ */
++#define NL80211_CMD_SET_BSS NL80211_CMD_SET_BSS
++
++/**
++ * enum nl80211_attrs - nl80211 netlink attributes
++ *
++ * @NL80211_ATTR_UNSPEC: unspecified attribute to catch errors
++ *
++ * @NL80211_ATTR_WIPHY: index of wiphy to operate on, cf.
++ *	/sys/class/ieee80211/<phyname>/index
++ * @NL80211_ATTR_WIPHY_NAME: wiphy name (used for renaming)
++ * @NL80211_ATTR_WIPHY_TXQ_PARAMS: a nested array of TX queue parameters
++ * @NL80211_ATTR_WIPHY_FREQ: frequency of the selected channel in MHz
++ * @NL80211_ATTR_WIPHY_SEC_CHAN_OFFSET: included with NL80211_ATTR_WIPHY_FREQ
++ *	if HT20 or HT40 are allowed (i.e., 802.11n disabled if not included):
++ *	NL80211_SEC_CHAN_NO_HT = HT not allowed (i.e., same as not including
++ *		this attribute)
++ *	NL80211_SEC_CHAN_DISABLED = HT20 only
++ *	NL80211_SEC_CHAN_BELOW = secondary channel is below the primary channel
++ *	NL80211_SEC_CHAN_ABOVE = secondary channel is above the primary channel
++ *
++ * @NL80211_ATTR_IFINDEX: network interface index of the device to operate on
++ * @NL80211_ATTR_IFNAME: network interface name
++ * @NL80211_ATTR_IFTYPE: type of virtual interface, see &enum nl80211_iftype
++ *
++ * @NL80211_ATTR_MAC: MAC address (various uses)
++ *
++ * @NL80211_ATTR_KEY_DATA: (temporal) key data; for TKIP this consists of
++ *	16 bytes encryption key followed by 8 bytes each for TX and RX MIC
++ *	keys
++ * @NL80211_ATTR_KEY_IDX: key ID (u8, 0-3)
++ * @NL80211_ATTR_KEY_CIPHER: key cipher suite (u32, as defined by IEEE 802.11
++ *	section 7.3.2.25.1, e.g. 0x000FAC04)
++ * @NL80211_ATTR_KEY_SEQ: transmit key sequence number (IV/PN) for TKIP and
++ *	CCMP keys, each six bytes in little endian
++ *
++ * @NL80211_ATTR_BEACON_INTERVAL: beacon interval in TU
++ * @NL80211_ATTR_DTIM_PERIOD: DTIM period for beaconing
++ * @NL80211_ATTR_BEACON_HEAD: portion of the beacon before the TIM IE
++ * @NL80211_ATTR_BEACON_TAIL: portion of the beacon after the TIM IE
++ *
++ * @NL80211_ATTR_STA_AID: Association ID for the station (u16)
++ * @NL80211_ATTR_STA_FLAGS: flags, nested element with NLA_FLAG attributes of
++ *	&enum nl80211_sta_flags.
++ * @NL80211_ATTR_STA_LISTEN_INTERVAL: listen interval as defined by
++ *	IEEE 802.11 7.3.1.6 (u16).
++ * @NL80211_ATTR_STA_SUPPORTED_RATES: supported rates, array of supported
++ *	rates as defined by IEEE 802.11 7.3.2.2 but without the length
++ *	restriction (at most %NL80211_MAX_SUPP_RATES).
++ * @NL80211_ATTR_STA_VLAN: interface index of VLAN interface to move station
++ *	to, or the AP interface the station was originally added to to.
++ * @NL80211_ATTR_STA_INFO: information about a station, part of station info
++ *	given for %NL80211_CMD_GET_STATION, nested attribute containing
++ *	info as possible, see &enum nl80211_sta_info.
++ *
++ * @NL80211_ATTR_WIPHY_BANDS: Information about an operating bands,
++ *	consisting of a nested array.
++ *
++ * @NL80211_ATTR_MESH_ID: mesh id (1-32 bytes).
++ * @NL80211_ATTR_PLINK_ACTION: action to perform on the mesh peer link.
++ * @NL80211_ATTR_MPATH_NEXT_HOP: MAC address of the next hop for a mesh path.
++ * @NL80211_ATTR_MPATH_INFO: information about a mesh_path, part of mesh path
++ * 	info given for %NL80211_CMD_GET_MPATH, nested attribute described at
++ *	&enum nl80211_mpath_info.
++ *
++ * @NL80211_ATTR_MNTR_FLAGS: flags, nested element with NLA_FLAG attributes of
++ *      &enum nl80211_mntr_flags.
++ *
++ * @NL80211_ATTR_REG_ALPHA2: an ISO-3166-alpha2 country code for which the
++ * 	current regulatory domain should be set to or is already set to.
++ * 	For example, 'CR', for Costa Rica. This attribute is used by the kernel
++ * 	to query the CRDA to retrieve one regulatory domain. This attribute can
++ * 	also be used by userspace to query the kernel for the currently set
++ * 	regulatory domain. We chose an alpha2 as that is also used by the
++ * 	IEEE-802.11d country information element to identify a country.
++ * 	Users can also simply ask the wireless core to set regulatory domain
++ * 	to a specific alpha2.
++ * @NL80211_ATTR_REG_RULES: a nested array of regulatory domain regulatory
++ *	rules.
++ *
++ * @NL80211_ATTR_BSS_CTS_PROT: whether CTS protection is enabled (u8, 0 or 1)
++ * @NL80211_ATTR_BSS_SHORT_PREAMBLE: whether short preamble is enabled
++ *	(u8, 0 or 1)
++ * @NL80211_ATTR_BSS_SHORT_SLOT_TIME: whether short slot time enabled
++ *	(u8, 0 or 1)
++ * @NL80211_ATTR_BSS_BASIC_RATES: basic rates, array of basic
++ *	rates in format defined by IEEE 802.11 7.3.2.2 but without the length
++ *	restriction (at most %NL80211_MAX_SUPP_RATES).
++ *
++ * @NL80211_ATTR_HT_CAPABILITY: HT Capability information element (from
++ *	association request when used with NL80211_CMD_NEW_STATION)
++ *
++ * @NL80211_ATTR_SUPPORTED_IFTYPES: nested attribute containing all
++ *	supported interface types, each a flag attribute with the number
++ *	of the interface mode.
++ *
++ * @NL80211_ATTR_MAX: highest attribute number currently defined
++ * @__NL80211_ATTR_AFTER_LAST: internal use
++ */
++enum nl80211_attrs {
++/* don't change the order or add anything inbetween, this is ABI! */
++	NL80211_ATTR_UNSPEC,
++
++	NL80211_ATTR_WIPHY,
++	NL80211_ATTR_WIPHY_NAME,
++
++	NL80211_ATTR_IFINDEX,
++	NL80211_ATTR_IFNAME,
++	NL80211_ATTR_IFTYPE,
++
++	NL80211_ATTR_MAC,
++
++	NL80211_ATTR_KEY_DATA,
++	NL80211_ATTR_KEY_IDX,
++	NL80211_ATTR_KEY_CIPHER,
++	NL80211_ATTR_KEY_SEQ,
++	NL80211_ATTR_KEY_DEFAULT,
++
++	NL80211_ATTR_BEACON_INTERVAL,
++	NL80211_ATTR_DTIM_PERIOD,
++	NL80211_ATTR_BEACON_HEAD,
++	NL80211_ATTR_BEACON_TAIL,
++
++	NL80211_ATTR_STA_AID,
++	NL80211_ATTR_STA_FLAGS,
++	NL80211_ATTR_STA_LISTEN_INTERVAL,
++	NL80211_ATTR_STA_SUPPORTED_RATES,
++	NL80211_ATTR_STA_VLAN,
++	NL80211_ATTR_STA_INFO,
++
++	NL80211_ATTR_WIPHY_BANDS,
++
++	NL80211_ATTR_MNTR_FLAGS,
++
++	NL80211_ATTR_MESH_ID,
++	NL80211_ATTR_STA_PLINK_ACTION,
++	NL80211_ATTR_MPATH_NEXT_HOP,
++	NL80211_ATTR_MPATH_INFO,
++
++	NL80211_ATTR_BSS_CTS_PROT,
++	NL80211_ATTR_BSS_SHORT_PREAMBLE,
++	NL80211_ATTR_BSS_SHORT_SLOT_TIME,
++
++	NL80211_ATTR_HT_CAPABILITY,
++
++	NL80211_ATTR_SUPPORTED_IFTYPES,
++
++	NL80211_ATTR_REG_ALPHA2,
++	NL80211_ATTR_REG_RULES,
++
++	NL80211_ATTR_MESH_PARAMS,
++
++	NL80211_ATTR_BSS_BASIC_RATES,
++
++	NL80211_ATTR_WIPHY_TXQ_PARAMS,
++	NL80211_ATTR_WIPHY_FREQ,
++	NL80211_ATTR_WIPHY_SEC_CHAN_OFFSET,
++
++	/* add attributes here, update the policy in nl80211.c */
++
++	__NL80211_ATTR_AFTER_LAST,
++	NL80211_ATTR_MAX = __NL80211_ATTR_AFTER_LAST - 1
++};
++
++/*
++ * Allow user space programs to use #ifdef on new attributes by defining them
++ * here
++ */
++#define NL80211_ATTR_HT_CAPABILITY NL80211_ATTR_HT_CAPABILITY
++#define NL80211_ATTR_BSS_BASIC_RATES NL80211_ATTR_BSS_BASIC_RATES
++#define NL80211_ATTR_WIPHY_TXQ_PARAMS NL80211_ATTR_WIPHY_TXQ_PARAMS
++#define NL80211_ATTR_WIPHY_FREQ NL80211_ATTR_WIPHY_FREQ
++#define NL80211_ATTR_WIPHY_SEC_CHAN_OFFSET NL80211_ATTR_WIPHY_SEC_CHAN_OFFSET
++
++#define NL80211_MAX_SUPP_RATES			32
++#define NL80211_MAX_SUPP_REG_RULES		32
++#define NL80211_TKIP_DATA_OFFSET_ENCR_KEY	0
++#define NL80211_TKIP_DATA_OFFSET_TX_MIC_KEY	16
++#define NL80211_TKIP_DATA_OFFSET_RX_MIC_KEY	24
++#define NL80211_HT_CAPABILITY_LEN		26
++
++/**
++ * enum nl80211_iftype - (virtual) interface types
++ *
++ * @NL80211_IFTYPE_UNSPECIFIED: unspecified type, driver decides
++ * @NL80211_IFTYPE_ADHOC: independent BSS member
++ * @NL80211_IFTYPE_STATION: managed BSS member
++ * @NL80211_IFTYPE_AP: access point
++ * @NL80211_IFTYPE_AP_VLAN: VLAN interface for access points
++ * @NL80211_IFTYPE_WDS: wireless distribution interface
++ * @NL80211_IFTYPE_MONITOR: monitor interface receiving all frames
++ * @NL80211_IFTYPE_MESH_POINT: mesh point
++ * @NL80211_IFTYPE_MAX: highest interface type number currently defined
++ * @__NL80211_IFTYPE_AFTER_LAST: internal use
++ *
++ * These values are used with the %NL80211_ATTR_IFTYPE
++ * to set the type of an interface.
++ *
++ */
++enum nl80211_iftype {
++	NL80211_IFTYPE_UNSPECIFIED,
++	NL80211_IFTYPE_ADHOC,
++	NL80211_IFTYPE_STATION,
++	NL80211_IFTYPE_AP,
++	NL80211_IFTYPE_AP_VLAN,
++	NL80211_IFTYPE_WDS,
++	NL80211_IFTYPE_MONITOR,
++	NL80211_IFTYPE_MESH_POINT,
++
++	/* keep last */
++	__NL80211_IFTYPE_AFTER_LAST,
++	NL80211_IFTYPE_MAX = __NL80211_IFTYPE_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_sta_flags - station flags
++ *
++ * Station flags. When a station is added to an AP interface, it is
++ * assumed to be already associated (and hence authenticated.)
++ *
++ * @NL80211_STA_FLAG_AUTHORIZED: station is authorized (802.1X)
++ * @NL80211_STA_FLAG_SHORT_PREAMBLE: station is capable of receiving frames
++ *	with short barker preamble
++ * @NL80211_STA_FLAG_WME: station is WME/QoS capable
++ */
++enum nl80211_sta_flags {
++	__NL80211_STA_FLAG_INVALID,
++	NL80211_STA_FLAG_AUTHORIZED,
++	NL80211_STA_FLAG_SHORT_PREAMBLE,
++	NL80211_STA_FLAG_WME,
++
++	/* keep last */
++	__NL80211_STA_FLAG_AFTER_LAST,
++	NL80211_STA_FLAG_MAX = __NL80211_STA_FLAG_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_sta_info - station information
++ *
++ * These attribute types are used with %NL80211_ATTR_STA_INFO
++ * when getting information about a station.
++ *
++ * @__NL80211_STA_INFO_INVALID: attribute number 0 is reserved
++ * @NL80211_STA_INFO_INACTIVE_TIME: time since last activity (u32, msecs)
++ * @NL80211_STA_INFO_RX_BYTES: total received bytes (u32, from this station)
++ * @NL80211_STA_INFO_TX_BYTES: total transmitted bytes (u32, to this station)
++ * @__NL80211_STA_INFO_AFTER_LAST: internal
++ * @NL80211_STA_INFO_MAX: highest possible station info attribute
++ */
++enum nl80211_sta_info {
++	__NL80211_STA_INFO_INVALID,
++	NL80211_STA_INFO_INACTIVE_TIME,
++	NL80211_STA_INFO_RX_BYTES,
++	NL80211_STA_INFO_TX_BYTES,
++	NL80211_STA_INFO_LLID,
++	NL80211_STA_INFO_PLID,
++	NL80211_STA_INFO_PLINK_STATE,
++
++	/* keep last */
++	__NL80211_STA_INFO_AFTER_LAST,
++	NL80211_STA_INFO_MAX = __NL80211_STA_INFO_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_mpath_flags - nl80211 mesh path flags
++ *
++ * @NL80211_MPATH_FLAG_ACTIVE: the mesh path is active
++ * @NL80211_MPATH_FLAG_RESOLVING: the mesh path discovery process is running
++ * @NL80211_MPATH_FLAG_DSN_VALID: the mesh path contains a valid DSN
++ * @NL80211_MPATH_FLAG_FIXED: the mesh path has been manually set
++ * @NL80211_MPATH_FLAG_RESOLVED: the mesh path discovery process succeeded
++ */
++enum nl80211_mpath_flags {
++	NL80211_MPATH_FLAG_ACTIVE =	1<<0,
++	NL80211_MPATH_FLAG_RESOLVING =	1<<1,
++	NL80211_MPATH_FLAG_DSN_VALID =	1<<2,
++	NL80211_MPATH_FLAG_FIXED =	1<<3,
++	NL80211_MPATH_FLAG_RESOLVED =	1<<4,
++};
++
++/**
++ * enum nl80211_mpath_info - mesh path information
++ *
++ * These attribute types are used with %NL80211_ATTR_MPATH_INFO when getting
++ * information about a mesh path.
++ *
++ * @__NL80211_MPATH_INFO_INVALID: attribute number 0 is reserved
++ * @NL80211_ATTR_MPATH_FRAME_QLEN: number of queued frames for this destination
++ * @NL80211_ATTR_MPATH_DSN: destination sequence number
++ * @NL80211_ATTR_MPATH_METRIC: metric (cost) of this mesh path
++ * @NL80211_ATTR_MPATH_EXPTIME: expiration time for the path, in msec from now
++ * @NL80211_ATTR_MPATH_FLAGS: mesh path flags, enumerated in
++ * 	&enum nl80211_mpath_flags;
++ * @NL80211_ATTR_MPATH_DISCOVERY_TIMEOUT: total path discovery timeout, in msec
++ * @NL80211_ATTR_MPATH_DISCOVERY_RETRIES: mesh path discovery retries
++ */
++enum nl80211_mpath_info {
++	__NL80211_MPATH_INFO_INVALID,
++	NL80211_MPATH_INFO_FRAME_QLEN,
++	NL80211_MPATH_INFO_DSN,
++	NL80211_MPATH_INFO_METRIC,
++	NL80211_MPATH_INFO_EXPTIME,
++	NL80211_MPATH_INFO_FLAGS,
++	NL80211_MPATH_INFO_DISCOVERY_TIMEOUT,
++	NL80211_MPATH_INFO_DISCOVERY_RETRIES,
++
++	/* keep last */
++	__NL80211_MPATH_INFO_AFTER_LAST,
++	NL80211_MPATH_INFO_MAX = __NL80211_MPATH_INFO_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_band_attr - band attributes
++ * @__NL80211_BAND_ATTR_INVALID: attribute number 0 is reserved
++ * @NL80211_BAND_ATTR_FREQS: supported frequencies in this band,
++ *	an array of nested frequency attributes
++ * @NL80211_BAND_ATTR_RATES: supported bitrates in this band,
++ *	an array of nested bitrate attributes
++ * @NL80211_BAND_ATTR_HT_MCS_SET: 16-byte attribute containing the MCS set as
++ *	defined in 802.11n
++ * @NL80211_BAND_ATTR_HT_CAPA: HT capabilities, as in the HT information IE
++ * @NL80211_BAND_ATTR_HT_AMPDU_FACTOR: A-MPDU factor, as in 11n
++ * @NL80211_BAND_ATTR_HT_AMPDU_DENSITY: A-MPDU density, as in 11n
++ */
++enum nl80211_band_attr {
++	__NL80211_BAND_ATTR_INVALID,
++	NL80211_BAND_ATTR_FREQS,
++	NL80211_BAND_ATTR_RATES,
++
++	NL80211_BAND_ATTR_HT_MCS_SET,
++	NL80211_BAND_ATTR_HT_CAPA,
++	NL80211_BAND_ATTR_HT_AMPDU_FACTOR,
++	NL80211_BAND_ATTR_HT_AMPDU_DENSITY,
++
++	/* keep last */
++	__NL80211_BAND_ATTR_AFTER_LAST,
++	NL80211_BAND_ATTR_MAX = __NL80211_BAND_ATTR_AFTER_LAST - 1
++};
++
++#define NL80211_BAND_ATTR_HT_CAPA NL80211_BAND_ATTR_HT_CAPA
++
++/**
++ * enum nl80211_frequency_attr - frequency attributes
++ * @NL80211_FREQUENCY_ATTR_FREQ: Frequency in MHz
++ * @NL80211_FREQUENCY_ATTR_DISABLED: Channel is disabled in current
++ *	regulatory domain.
++ * @NL80211_FREQUENCY_ATTR_PASSIVE_SCAN: Only passive scanning is
++ *	permitted on this channel in current regulatory domain.
++ * @NL80211_FREQUENCY_ATTR_NO_IBSS: IBSS networks are not permitted
++ *	on this channel in current regulatory domain.
++ * @NL80211_FREQUENCY_ATTR_RADAR: Radar detection is mandatory
++ *	on this channel in current regulatory domain.
++ * @NL80211_FREQUENCY_ATTR_MAX_TX_POWER: Maximum transmission power in mBm
++ *	(100 * dBm).
++ */
++enum nl80211_frequency_attr {
++	__NL80211_FREQUENCY_ATTR_INVALID,
++	NL80211_FREQUENCY_ATTR_FREQ,
++	NL80211_FREQUENCY_ATTR_DISABLED,
++	NL80211_FREQUENCY_ATTR_PASSIVE_SCAN,
++	NL80211_FREQUENCY_ATTR_NO_IBSS,
++	NL80211_FREQUENCY_ATTR_RADAR,
++	NL80211_FREQUENCY_ATTR_MAX_TX_POWER,
++
++	/* keep last */
++	__NL80211_FREQUENCY_ATTR_AFTER_LAST,
++	NL80211_FREQUENCY_ATTR_MAX = __NL80211_FREQUENCY_ATTR_AFTER_LAST - 1
++};
++
++#define NL80211_FREQUENCY_ATTR_MAX_TX_POWER NL80211_FREQUENCY_ATTR_MAX_TX_POWER
++
++/**
++ * enum nl80211_bitrate_attr - bitrate attributes
++ * @NL80211_BITRATE_ATTR_RATE: Bitrate in units of 100 kbps
++ * @NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE: Short preamble supported
++ *	in 2.4 GHz band.
++ */
++enum nl80211_bitrate_attr {
++	__NL80211_BITRATE_ATTR_INVALID,
++	NL80211_BITRATE_ATTR_RATE,
++	NL80211_BITRATE_ATTR_2GHZ_SHORTPREAMBLE,
++
++	/* keep last */
++	__NL80211_BITRATE_ATTR_AFTER_LAST,
++	NL80211_BITRATE_ATTR_MAX = __NL80211_BITRATE_ATTR_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_reg_rule_attr - regulatory rule attributes
++ * @NL80211_ATTR_REG_RULE_FLAGS: a set of flags which specify additional
++ * 	considerations for a given frequency range. These are the
++ * 	&enum nl80211_reg_rule_flags.
++ * @NL80211_ATTR_FREQ_RANGE_START: starting frequencry for the regulatory
++ * 	rule in KHz. This is not a center of frequency but an actual regulatory
++ * 	band edge.
++ * @NL80211_ATTR_FREQ_RANGE_END: ending frequency for the regulatory rule
++ * 	in KHz. This is not a center a frequency but an actual regulatory
++ * 	band edge.
++ * @NL80211_ATTR_FREQ_RANGE_MAX_BW: maximum allowed bandwidth for this
++ * 	frequency range, in KHz.
++ * @NL80211_ATTR_POWER_RULE_MAX_ANT_GAIN: the maximum allowed antenna gain
++ * 	for a given frequency range. The value is in mBi (100 * dBi).
++ * 	If you don't have one then don't send this.
++ * @NL80211_ATTR_POWER_RULE_MAX_EIRP: the maximum allowed EIRP for
++ * 	a given frequency range. The value is in mBm (100 * dBm).
++ */
++enum nl80211_reg_rule_attr {
++	__NL80211_REG_RULE_ATTR_INVALID,
++	NL80211_ATTR_REG_RULE_FLAGS,
++
++	NL80211_ATTR_FREQ_RANGE_START,
++	NL80211_ATTR_FREQ_RANGE_END,
++	NL80211_ATTR_FREQ_RANGE_MAX_BW,
++
++	NL80211_ATTR_POWER_RULE_MAX_ANT_GAIN,
++	NL80211_ATTR_POWER_RULE_MAX_EIRP,
++
++	/* keep last */
++	__NL80211_REG_RULE_ATTR_AFTER_LAST,
++	NL80211_REG_RULE_ATTR_MAX = __NL80211_REG_RULE_ATTR_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_reg_rule_flags - regulatory rule flags
++ *
++ * @NL80211_RRF_NO_OFDM: OFDM modulation not allowed
++ * @NL80211_RRF_NO_CCK: CCK modulation not allowed
++ * @NL80211_RRF_NO_INDOOR: indoor operation not allowed
++ * @NL80211_RRF_NO_OUTDOOR: outdoor operation not allowed
++ * @NL80211_RRF_DFS: DFS support is required to be used
++ * @NL80211_RRF_PTP_ONLY: this is only for Point To Point links
++ * @NL80211_RRF_PTMP_ONLY: this is only for Point To Multi Point links
++ * @NL80211_RRF_PASSIVE_SCAN: passive scan is required
++ * @NL80211_RRF_NO_IBSS: no IBSS is allowed
++ */
++enum nl80211_reg_rule_flags {
++	NL80211_RRF_NO_OFDM		= 1<<0,
++	NL80211_RRF_NO_CCK		= 1<<1,
++	NL80211_RRF_NO_INDOOR		= 1<<2,
++	NL80211_RRF_NO_OUTDOOR		= 1<<3,
++	NL80211_RRF_DFS			= 1<<4,
++	NL80211_RRF_PTP_ONLY		= 1<<5,
++	NL80211_RRF_PTMP_ONLY		= 1<<6,
++	NL80211_RRF_PASSIVE_SCAN	= 1<<7,
++	NL80211_RRF_NO_IBSS		= 1<<8,
++};
++
++/**
++ * enum nl80211_mntr_flags - monitor configuration flags
++ *
++ * Monitor configuration flags.
++ *
++ * @__NL80211_MNTR_FLAG_INVALID: reserved
++ *
++ * @NL80211_MNTR_FLAG_FCSFAIL: pass frames with bad FCS
++ * @NL80211_MNTR_FLAG_PLCPFAIL: pass frames with bad PLCP
++ * @NL80211_MNTR_FLAG_CONTROL: pass control frames
++ * @NL80211_MNTR_FLAG_OTHER_BSS: disable BSSID filtering
++ * @NL80211_MNTR_FLAG_COOK_FRAMES: report frames after processing.
++ *	overrides all other flags.
++ *
++ * @__NL80211_MNTR_FLAG_AFTER_LAST: internal use
++ * @NL80211_MNTR_FLAG_MAX: highest possible monitor flag
++ */
++enum nl80211_mntr_flags {
++	__NL80211_MNTR_FLAG_INVALID,
++	NL80211_MNTR_FLAG_FCSFAIL,
++	NL80211_MNTR_FLAG_PLCPFAIL,
++	NL80211_MNTR_FLAG_CONTROL,
++	NL80211_MNTR_FLAG_OTHER_BSS,
++	NL80211_MNTR_FLAG_COOK_FRAMES,
++
++	/* keep last */
++	__NL80211_MNTR_FLAG_AFTER_LAST,
++	NL80211_MNTR_FLAG_MAX = __NL80211_MNTR_FLAG_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_meshconf_params - mesh configuration parameters
++ *
++ * Mesh configuration parameters
++ *
++ * @__NL80211_MESHCONF_INVALID: internal use
++ *
++ * @NL80211_MESHCONF_RETRY_TIMEOUT: specifies the initial retry timeout in
++ * millisecond units, used by the Peer Link Open message
++ *
++ * @NL80211_MESHCONF_CONFIRM_TIMEOUT: specifies the inital confirm timeout, in
++ * millisecond units, used by the peer link management to close a peer link
++ *
++ * @NL80211_MESHCONF_HOLDING_TIMEOUT: specifies the holding timeout, in
++ * millisecond units
++ *
++ * @NL80211_MESHCONF_MAX_PEER_LINKS: maximum number of peer links allowed
++ * on this mesh interface
++ *
++ * @NL80211_MESHCONF_MAX_RETRIES: specifies the maximum number of peer link
++ * open retries that can be sent to establish a new peer link instance in a
++ * mesh
++ *
++ * @NL80211_MESHCONF_TTL: specifies the value of TTL field set at a source mesh
++ * point.
++ *
++ * @NL80211_MESHCONF_AUTO_OPEN_PLINKS: whether we should automatically
++ * open peer links when we detect compatible mesh peers.
++ *
++ * @NL80211_MESHCONF_HWMP_MAX_PREQ_RETRIES: the number of action frames
++ * containing a PREQ that an MP can send to a particular destination (path
++ * target)
++ *
++ * @NL80211_MESHCONF_PATH_REFRESH_TIME: how frequently to refresh mesh paths
++ * (in milliseconds)
++ *
++ * @NL80211_MESHCONF_MIN_DISCOVERY_TIMEOUT: minimum length of time to wait
++ * until giving up on a path discovery (in milliseconds)
++ *
++ * @NL80211_MESHCONF_HWMP_ACTIVE_PATH_TIMEOUT: The time (in TUs) for which mesh
++ * points receiving a PREQ shall consider the forwarding information from the
++ * root to be valid. (TU = time unit)
++ *
++ * @NL80211_MESHCONF_HWMP_PREQ_MIN_INTERVAL: The minimum interval of time (in
++ * TUs) during which an MP can send only one action frame containing a PREQ
++ * reference element
++ *
++ * @NL80211_MESHCONF_HWMP_NET_DIAM_TRVS_TIME: The interval of time (in TUs)
++ * that it takes for an HWMP information element to propagate across the mesh
++ *
++ * @NL80211_MESHCONF_ATTR_MAX: highest possible mesh configuration attribute
++ *
++ * @__NL80211_MESHCONF_ATTR_AFTER_LAST: internal use
++ */
++enum nl80211_meshconf_params {
++	__NL80211_MESHCONF_INVALID,
++	NL80211_MESHCONF_RETRY_TIMEOUT,
++	NL80211_MESHCONF_CONFIRM_TIMEOUT,
++	NL80211_MESHCONF_HOLDING_TIMEOUT,
++	NL80211_MESHCONF_MAX_PEER_LINKS,
++	NL80211_MESHCONF_MAX_RETRIES,
++	NL80211_MESHCONF_TTL,
++	NL80211_MESHCONF_AUTO_OPEN_PLINKS,
++	NL80211_MESHCONF_HWMP_MAX_PREQ_RETRIES,
++	NL80211_MESHCONF_PATH_REFRESH_TIME,
++	NL80211_MESHCONF_MIN_DISCOVERY_TIMEOUT,
++	NL80211_MESHCONF_HWMP_ACTIVE_PATH_TIMEOUT,
++	NL80211_MESHCONF_HWMP_PREQ_MIN_INTERVAL,
++	NL80211_MESHCONF_HWMP_NET_DIAM_TRVS_TIME,
++
++	/* keep last */
++	__NL80211_MESHCONF_ATTR_AFTER_LAST,
++	NL80211_MESHCONF_ATTR_MAX = __NL80211_MESHCONF_ATTR_AFTER_LAST - 1
++};
++
++/**
++ * enum nl80211_txq_attr - TX queue parameter attributes
++ * @__NL80211_TXQ_ATTR_INVALID: Attribute number 0 is reserved
++ * @NL80211_TXQ_ATTR_QUEUE: TX queue identifier (NL80211_TXQ_Q_*)
++ * @NL80211_TXQ_ATTR_TXOP: Maximum burst time in units of 32 usecs, 0 meaning
++ *	disabled
++ * @NL80211_TXQ_ATTR_CWMIN: Minimum contention window [a value of the form
++ *	2^n-1 in the range 1..32767]
++ * @NL80211_TXQ_ATTR_CWMAX: Maximum contention window [a value of the form
++ *	2^n-1 in the range 1..32767]
++ * @NL80211_TXQ_ATTR_AIFS: Arbitration interframe space [0..255]
++ * @__NL80211_TXQ_ATTR_AFTER_LAST: Internal
++ * @NL80211_TXQ_ATTR_MAX: Maximum TXQ attribute number
++ */
++enum nl80211_txq_attr {
++	__NL80211_TXQ_ATTR_INVALID,
++	NL80211_TXQ_ATTR_QUEUE,
++	NL80211_TXQ_ATTR_TXOP,
++	NL80211_TXQ_ATTR_CWMIN,
++	NL80211_TXQ_ATTR_CWMAX,
++	NL80211_TXQ_ATTR_AIFS,
++
++	/* keep last */
++	__NL80211_TXQ_ATTR_AFTER_LAST,
++	NL80211_TXQ_ATTR_MAX = __NL80211_TXQ_ATTR_AFTER_LAST - 1
++};
++
++enum nl80211_txq_q {
++	NL80211_TXQ_Q_VO,
++	NL80211_TXQ_Q_VI,
++	NL80211_TXQ_Q_BE,
++	NL80211_TXQ_Q_BK
++};
++
++enum nl80211_sec_chan_offset {
++	NL80211_SEC_CHAN_NO_HT /* No HT */,
++	NL80211_SEC_CHAN_DISABLED /* HT20 only */,
++	NL80211_SEC_CHAN_BELOW /* HT40- */,
++	NL80211_SEC_CHAN_ABOVE /* HT40+ */
++};
++#endif /* __LINUX_NL80211_H */
+diff --git a/external/crda/print-regdom.c b/external/crda/print-regdom.c
+new file mode 100644
+index 0000000..34b5ed4
+--- /dev/null
++++ b/external/crda/print-regdom.c
+@@ -0,0 +1,122 @@
++#include <errno.h>
++#include <stdio.h>
++#include <string.h>
++#include <arpa/inet.h>
++#include "reglib.h"
++
++static void reg_rule2rd(__u8 *db, int dblen,
++	__be32 ruleptr, struct ieee80211_reg_rule *rd_reg_rule)
++{
++	struct regdb_file_reg_rule *rule;
++	struct regdb_file_freq_range *freq;
++	struct regdb_file_power_rule *power;
++
++	struct ieee80211_freq_range *rd_freq_range = &rd_reg_rule->freq_range;
++	struct ieee80211_power_rule *rd_power_rule = &rd_reg_rule->power_rule;
++
++	rule  = crda_get_file_ptr(db, dblen, sizeof(*rule), ruleptr);
++	freq  = crda_get_file_ptr(db, dblen, sizeof(*freq), rule->freq_range_ptr);
++	power = crda_get_file_ptr(db, dblen, sizeof(*power), rule->power_rule_ptr);
++
++	rd_freq_range->start_freq_khz = ntohl(freq->start_freq);
++	rd_freq_range->end_freq_khz = ntohl(freq->end_freq);
++	rd_freq_range->max_bandwidth_khz = ntohl(freq->max_bandwidth);
++
++	rd_power_rule->max_antenna_gain = ntohl(power->max_antenna_gain);
++	rd_power_rule->max_eirp = ntohl(power->max_eirp);
++
++	rd_reg_rule->flags = ntohl(rule->flags);
++}
++
++/* Converts a file regdomain to ieee80211_regdomain, easier to manage */
++struct ieee80211_regdomain *country2rd(__u8 *db, int dblen,
++	struct regdb_file_reg_country *country)
++{
++	struct regdb_file_reg_rules_collection *rcoll;
++	struct ieee80211_regdomain *rd;
++	int i, num_rules, size_of_rd;
++
++	rcoll = crda_get_file_ptr(db, dblen, sizeof(*rcoll),
++				country->reg_collection_ptr);
++	num_rules = ntohl(rcoll->reg_rule_num);
++	/* re-get pointer with sanity checking for num_rules */
++	rcoll = crda_get_file_ptr(db, dblen,
++			sizeof(*rcoll) + num_rules * sizeof(__be32),
++			country->reg_collection_ptr);
++
++	size_of_rd = sizeof(struct ieee80211_regdomain) +
++		num_rules * sizeof(struct ieee80211_reg_rule);
++
++	rd = malloc(size_of_rd);
++	if (!rd)
++		return NULL;
++
++	memset(rd, 0, size_of_rd);
++
++	rd->alpha2[0] = country->alpha2[0];
++	rd->alpha2[1] = country->alpha2[1];
++	rd->n_reg_rules = num_rules;
++
++	for (i = 0; i < num_rules; i++) {
++		reg_rule2rd(db, dblen, rcoll->reg_rule_ptrs[i],
++			&rd->reg_rules[i]);
++	}
++
++	return rd;
++}
++
++static void print_reg_rule(struct ieee80211_reg_rule *rule)
++{
++	struct ieee80211_freq_range *freq;
++	struct ieee80211_power_rule *power;
++
++	freq  = &rule->freq_range;
++	power = &rule->power_rule;
++
++	printf("\t(%.3f - %.3f @ %.3f), ",
++	       ((float)(freq->start_freq_khz))/1000.0,
++	       ((float)(freq->end_freq_khz))/1000.0,
++	       ((float)(freq->max_bandwidth_khz))/1000.0);
++
++	printf("(");
++
++	if (power->max_antenna_gain)
++		printf("%.2f, ", ((float)(power->max_antenna_gain)/100.0));
++	else
++		printf("N/A, ");
++
++	if (power->max_eirp)
++		printf("%.2f)", ((float)(power->max_eirp)/100.0));
++	else
++		printf("N/A)");
++
++	if (rule->flags & RRF_NO_OFDM)
++		printf(", NO-OFDM");
++	if (rule->flags & RRF_NO_CCK)
++		printf(", NO-CCK");
++	if (rule->flags & RRF_NO_INDOOR)
++		printf(", NO-INDOOR");
++	if (rule->flags & RRF_NO_OUTDOOR)
++		printf(", NO-OUTDOOR");
++	if (rule->flags & RRF_DFS)
++		printf(", DFS");
++	if (rule->flags & RRF_PTP_ONLY)
++		printf(", PTP-ONLY");
++	if (rule->flags & RRF_PTMP_ONLY)
++		printf(", PTMP-ONLY");
++	if (rule->flags & RRF_PASSIVE_SCAN)
++		printf(", PASSIVE-SCAN");
++	if (rule->flags & RRF_NO_IBSS)
++		printf(", NO-IBSS");
++
++	printf("\n");
++}
++
++void print_regdom(struct ieee80211_regdomain *rd)
++{
++	unsigned int i;
++	printf("country %.2s:\n", rd->alpha2);
++	for (i = 0; i < rd->n_reg_rules; i++)
++		print_reg_rule(&rd->reg_rules[i]);
++	printf("\n");
++}
+diff --git a/external/crda/pubkeys/linville.key.pub.pem b/external/crda/pubkeys/linville.key.pub.pem
+new file mode 100644
+index 0000000..3a2e8d0
+--- /dev/null
++++ b/external/crda/pubkeys/linville.key.pub.pem
+@@ -0,0 +1,9 @@
++-----BEGIN PUBLIC KEY-----
++MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEA1leZcYjTXc4qLq1oN2Ak
++8vLP85P5cFTrCpqdSI5W4VOwdaJB4TtaxU2fATcH/A2EsE3h1rOfzI0+fBV9DcOO
++qyID+zdILBMb8xK5Zv+78OkBGls/WzvDDVhdmn1TRHvRvmJy7cX1mCT56cnHrZM/
++ZBaFwVfiD9TcqqisyF1sqE5+cMHTWRbxc1+rtojr0eGYrNfK20awlD5KVj6Ejzot
++r9EDWAsL1bH/kGfMdnputcyMapLQpRVruO/jEdjSmhAE/sj1tmHcAXBT6j5al4Oa
++LiBaWnP++rune7rjimwfzp0549/rupQUM7nAZRDLyzXj3J/KEci6dXtjonBUFqDY
++4QIDAQAB
++-----END PUBLIC KEY-----
+diff --git a/external/crda/regdb.h b/external/crda/regdb.h
+new file mode 100644
+index 0000000..045a0e3
+--- /dev/null
++++ b/external/crda/regdb.h
+@@ -0,0 +1,127 @@
++#ifndef REG_DB_H
++#define REG_DB_H
++
++#include <linux/types.h>
++
++/*
++ * WARNING: This file needs to be kept in sync with
++ *  - the parser (dbparse.py)
++ *  - the generator code (db2bin.py)
++ */
++
++/* spells "RGDB" */
++#define REGDB_MAGIC	0x52474442
++
++/*
++ * Only supported version now, start at arbitrary number
++ * to have some more magic. We still consider this to be
++ * "Version 1" of the file.
++ */
++#define REGDB_VERSION	19
++
++/*
++ * The signature at the end of the file is an RSA-signed
++ * SHA-1 hash of the file.
++ */
++
++/* db file starts with a struct regdb_file_header */
++
++struct regdb_file_header {
++	/* must be REGDB_MAGIC */
++	__be32	magic;
++	/* must be REGDB_VERSION */
++	__be32	version;
++	/*
++	 * Pointer (offset) into file where country list starts
++	 * and number of countries. The country list is sorted
++	 * alphabetically to allow binary searching (should it
++	 * become really huge). Each country is described by a
++	 * struct regdb_file_reg_country.
++	 */
++	__be32	reg_country_ptr;
++	__be32	reg_country_num;
++	/* length (in bytes) of the signature at the end of the file */
++	__be32	signature_length;
++};
++
++struct regdb_file_freq_range {
++	__be32	start_freq,	/* in kHz */
++		end_freq,	/* in kHz */
++		max_bandwidth;	/* in kHz */
++};
++
++/*
++ * Values of zero mean "not applicable", i.e. the regulatory
++ * does not limit a certain value.
++ */
++struct regdb_file_power_rule {
++	/* antenna gain is in mBi (100 * dBi) */
++	__be32	max_antenna_gain;
++	/* this is in mBm (100 * dBm) */
++	__be32	max_eirp;
++};
++
++/* must match <linux/nl80211.h> enum nl80211_reg_rule_flags */
++
++enum reg_rule_flags {
++	RRF_NO_OFDM		= 1<<0, /* OFDM modulation not allowed */
++	RRF_NO_CCK		= 1<<1, /* CCK modulation not allowed */
++	RRF_NO_INDOOR		= 1<<2, /* indoor operation not allowed */
++	RRF_NO_OUTDOOR		= 1<<3, /* outdoor operation not allowed */
++	RRF_DFS			= 1<<4, /* DFS support is required to be
++					 * used */
++	RRF_PTP_ONLY		= 1<<5, /* this is only for Point To Point
++					 * links */
++	RRF_PTMP_ONLY		= 1<<6, /* this is only for Point To Multi
++					 * Point links */
++	RRF_PASSIVE_SCAN	= 1<<7, /* passive scan is required */
++	RRF_NO_IBSS		= 1<<8, /* IBSS is not allowed */
++};
++
++struct regdb_file_reg_rule {
++	/* pointers (offsets) into the file */
++	__be32	freq_range_ptr; /* pointer to a struct regdb_file_freq_range */
++	__be32	power_rule_ptr; /* pointer to a struct regdb_file_power_rule */
++	/* rule flags using enum reg_rule_flags */
++	__be32 flags;
++};
++
++struct regdb_file_reg_rules_collection {
++	__be32	reg_rule_num;
++	/* pointers (offsets) into the file. There are reg_rule_num elements
++	 * in the reg_rule_ptrs array pointing to struct
++	 * regdb_file_reg_rule */
++	__be32	reg_rule_ptrs[];
++};
++
++struct regdb_file_reg_country {
++	__u8	alpha2[2];
++	__u8	PAD[2];
++	/* pointer (offset) into the file to a struct
++	 * regdb_file_reg_rules_collection */
++	__be32	reg_collection_ptr;
++};
++
++
++/*
++ * Verify that no unexpected padding is added to structures
++ * for some reason.
++ */
++
++#define ERROR_ON(cond) \
++	((void)sizeof(char[1 - 2*!!(cond)]))
++
++#define CHECK_STRUCT(name, size) \
++	ERROR_ON(sizeof(struct name) != size)
++
++static inline void check_db_binary_structs(void)
++{
++	CHECK_STRUCT(regdb_file_header, 20);
++	CHECK_STRUCT(regdb_file_freq_range, 12);
++	CHECK_STRUCT(regdb_file_power_rule, 8);
++	CHECK_STRUCT(regdb_file_reg_rule, 12);
++	CHECK_STRUCT(regdb_file_reg_rules_collection, 4);
++	CHECK_STRUCT(regdb_file_reg_country, 8);
++}
++
++#endif
+diff --git a/external/crda/regdbdump.8 b/external/crda/regdbdump.8
+new file mode 100644
+index 0000000..4a9cbec
+--- /dev/null
++++ b/external/crda/regdbdump.8
+@@ -0,0 +1,37 @@
++.TH regdbdump 8 "23 January 2009" "regdbdump" "Linux"
++.SH NAME
++regdbdump \- parse and print out regulatory rules file
++.SH SYNOPSIS
++
++.ad l
++.in +8
++.ti -8
++.B regdbdump
++.RI <path-to-regulatory.bin>
++
++
++.ad l
++.in +8
++.ti -8
++
++.SS
++.SH Description
++.B regdbdump
++can be used to parse the
++.B regulatory.bin
++file, the Linux wireless regulatory database used by
++.B crda,
++and print out its contents in human readable format.
++.B regdbdump
++will return non zero if the digital signature
++.B regdbdump
++was built with cannot verify the signature of the regulatory database.
++Should this happen unintentionally chances are your regulatory.bin file is
++corrupted or has been tampered with.
++
++.SH SEE ALSO
++.BR regulatory.bin (5)
++.BR crda (8)
++.BR iw (8)
++
++.BR http://wireless.kernel.org/en/developers/Regulatory/
+diff --git a/external/crda/regdbdump.c b/external/crda/regdbdump.c
+new file mode 100644
+index 0000000..51f99bc
+--- /dev/null
++++ b/external/crda/regdbdump.c
+@@ -0,0 +1,94 @@
++#include <errno.h>
++#include <stdlib.h>
++#include <stdio.h>
++#include <sys/mman.h>
++#include <sys/stat.h>
++#include <fcntl.h>
++#include <arpa/inet.h> /* ntohl */
++
++#include "regdb.h"
++#include "reglib.h"
++
++int main(int argc, char **argv)
++{
++	int fd;
++	struct stat stat;
++	__u8 *db;
++	struct regdb_file_header *header;
++	struct regdb_file_reg_country *countries;
++	int dblen, siglen, num_countries, i, r = 0;
++	struct ieee80211_regdomain *rd = NULL;
++
++	if (argc != 2) {
++		fprintf(stderr, "Usage: %s <filename>\n", argv[0]);
++		return 2;
++	}
++
++	fd = open(argv[1], O_RDONLY);
++	if (fd < 0) {
++		perror("failed to open db file");
++		return 2;
++	}
++
++	if (fstat(fd, &stat)) {
++		perror("failed to fstat db file");
++		return 2;
++	}
++
++	dblen = stat.st_size;
++
++	db = mmap(NULL, dblen, PROT_READ, MAP_PRIVATE, fd, 0);
++	if (db == MAP_FAILED) {
++		perror("failed to mmap db file");
++		return 2;
++	}
++
++	header = crda_get_file_ptr(db, dblen, sizeof(*header), 0);
++
++	if (ntohl(header->magic) != REGDB_MAGIC) {
++		fprintf(stderr, "Invalid database magic\n");
++		return 2;
++	}
++
++	if (ntohl(header->version) != REGDB_VERSION) {
++		fprintf(stderr, "Invalid database version\n");
++		return 2;
++	}
++
++	siglen = ntohl(header->signature_length);
++	/* adjust dblen so later sanity checks don't run into the signature */
++	dblen -= siglen;
++
++	if (dblen <= (int)sizeof(*header)) {
++		fprintf(stderr, "Invalid signature length %d\n", siglen);
++		return 2;
++	}
++
++	/* verify signature */
++	if (!crda_verify_db_signature(db, dblen, siglen))
++		return -EINVAL;
++
++	num_countries = ntohl(header->reg_country_num);
++	countries = crda_get_file_ptr(db, dblen,
++			sizeof(struct regdb_file_reg_country) * num_countries,
++			header->reg_country_ptr);
++
++	for (i = 0; i < num_countries; i++) {
++		struct regdb_file_reg_country *country = countries + i;
++
++		rd = country2rd(db, dblen, country);
++		if (!rd) {
++			r = -ENOMEM;
++			fprintf(stderr, "Could not covert country "
++			"(%.2s) to rd\n", country->alpha2);
++			goto out;
++		}
++
++		print_regdom(rd);
++		free(rd);
++		rd = NULL;
++
++	}
++out:
++	return r;
++}
+diff --git a/external/crda/reglib.c b/external/crda/reglib.c
+new file mode 100644
+index 0000000..218110b
+--- /dev/null
++++ b/external/crda/reglib.c
+@@ -0,0 +1,153 @@
++#include <errno.h>
++#include <stdio.h>
++#include <arpa/inet.h>
++#include <sys/types.h>
++#include <dirent.h>
++#include "reglib.h"
++
++#ifdef USE_OPENSSL
++#include <openssl/objects.h>
++#include <openssl/rsa.h>
++#include <openssl/sha.h>
++#include <openssl/pem.h>
++#endif
++
++#ifdef USE_GCRYPT
++#include <gcrypt.h>
++#endif
++
++#include "reglib.h"
++
++#ifdef USE_OPENSSL
++#include "keys-ssl.c"
++#endif
++
++#ifdef USE_GCRYPT
++#include "keys-gcrypt.c"
++#endif
++
++void *crda_get_file_ptr(__u8 *db, int dblen, int structlen, __be32 ptr)
++{
++	__u32 p = ntohl(ptr);
++
++	if (p > dblen - structlen) {
++		fprintf(stderr, "Invalid database file, bad pointer!\n");
++		exit(3);
++	}
++
++	return (void *)(db + p);
++}
++
++/*
++ * Checks the validity of the signature found on the regulatory
++ * database against the array 'keys'. Returns 1 if there exists
++ * at least one key in the array such that the signature is valid
++ * against that key; 0 otherwise.
++ */
++int crda_verify_db_signature(__u8 *db, int dblen, int siglen)
++{
++#ifdef USE_OPENSSL
++	RSA *rsa;
++	__u8 hash[SHA_DIGEST_LENGTH];
++	unsigned int i;
++	int ok = 0;
++	DIR *pubkey_dir;
++	struct dirent *nextfile;
++	FILE *keyfile;
++	char filename[PATH_MAX];
++
++	if (SHA1(db, dblen, hash) != hash) {
++		fprintf(stderr, "Failed to calculate SHA1 sum.\n");
++		goto out;
++	}
++
++	for (i = 0; (i < sizeof(keys)/sizeof(keys[0])) && (!ok); i++) {
++		rsa = RSA_new();
++		if (!rsa) {
++			fprintf(stderr, "Failed to create RSA key.\n");
++			goto out;
++		}
++
++		rsa->e = &keys[i].e;
++		rsa->n = &keys[i].n;
++
++		ok = RSA_verify(NID_sha1, hash, SHA_DIGEST_LENGTH,
++				db + dblen, siglen, rsa) == 1;
++
++		rsa->e = NULL;
++		rsa->n = NULL;
++		RSA_free(rsa);
++	}
++	if (!ok && (pubkey_dir = opendir(PUBKEY_DIR))) {
++		while (!ok && (nextfile = readdir(pubkey_dir))) {
++			snprintf(filename, PATH_MAX, "%s/%s", PUBKEY_DIR,
++				nextfile->d_name);
++			if ((keyfile = fopen(filename, "rb"))) {
++				rsa = PEM_read_RSA_PUBKEY(keyfile,
++					NULL, NULL, NULL);
++				if (rsa)
++					ok = RSA_verify(NID_sha1, hash, SHA_DIGEST_LENGTH,
++						db + dblen, siglen, rsa) == 1;
++				RSA_free(rsa);
++				fclose(keyfile);
++			}
++		}
++		closedir(pubkey_dir);
++	}
++#endif
++
++#ifdef USE_GCRYPT
++	gcry_mpi_t mpi_e, mpi_n;
++	gcry_sexp_t rsa, signature, data;
++	__u8 hash[20];
++	unsigned int i;
++	int ok = 0;
++
++	/* initialise */
++	gcry_check_version(NULL);
++
++	/* hash the db */
++	gcry_md_hash_buffer(GCRY_MD_SHA1, hash, db, dblen);
++
++	if (gcry_sexp_build(&data, NULL, "(data (flags pkcs1) (hash sha1 %b))",
++			    20, hash)) {
++		fprintf(stderr, "Failed to build data S-expression.\n");
++		goto out;
++	}
++
++	if (gcry_sexp_build(&signature, NULL, "(sig-val (rsa (s %b)))",
++			    siglen, db + dblen)) {
++		fprintf(stderr, "Failed to build signature S-expression.\n");
++		goto out;
++	}
++
++	for (i = 0; (i < sizeof(keys)/sizeof(keys[0])) && (!ok); i++) {
++		if (gcry_mpi_scan(&mpi_e, GCRYMPI_FMT_USG,
++				keys[i].e, keys[i].len_e, NULL) ||
++		    gcry_mpi_scan(&mpi_n, GCRYMPI_FMT_USG,
++				keys[i].n, keys[i].len_n, NULL)) {
++			fprintf(stderr, "Failed to convert numbers.\n");
++			goto out;
++		}
++
++		if (gcry_sexp_build(&rsa, NULL,
++				    "(public-key (rsa (n %m) (e %m)))",
++				    mpi_n, mpi_e)) {
++			fprintf(stderr, "Failed to build RSA S-expression.\n");
++			goto out;
++		}
++
++		ok = gcry_pk_verify(signature, data, rsa) == 0;
++	}
++#endif
++
++#if defined(USE_OPENSSL) || defined(USE_GCRYPT)
++	if (!ok)
++		fprintf(stderr, "Database signature verification failed.\n");
++
++out:
++	return ok;
++#else
++	return 1;
++#endif
++}
+diff --git a/external/crda/reglib.h b/external/crda/reglib.h
+new file mode 100644
+index 0000000..f3a76ef
+--- /dev/null
++++ b/external/crda/reglib.h
+@@ -0,0 +1,97 @@
++#ifndef REG_LIB_H
++#define REG_LIB_H
++
++#include <stdlib.h>
++#include <linux/types.h>
++
++#include "regdb.h"
++
++/* Common regulatory structures, functions and helpers */
++
++/* This matches the kernel's data structures */
++struct ieee80211_freq_range {
++	__u32 start_freq_khz;
++	__u32 end_freq_khz;
++	__u32 max_bandwidth_khz;
++};
++
++struct ieee80211_power_rule {
++	__u32 max_antenna_gain;
++	__u32 max_eirp;
++};
++
++struct ieee80211_reg_rule {
++	struct ieee80211_freq_range freq_range;
++	struct ieee80211_power_rule power_rule;
++	__u32 flags;
++};
++
++struct ieee80211_regdomain {
++	__u32 n_reg_rules;
++	char alpha2[2];
++	struct ieee80211_reg_rule reg_rules[];
++};
++
++static inline int is_world_regdom(const char *alpha2)
++{
++	if (alpha2[0] == '0' && alpha2[1] == '0')
++		return 1;
++	return 0;
++}
++
++static inline int isalpha_upper(char letter)
++{
++	if (letter >= 'A' && letter <= 'Z')
++		return 1;
++	return 0;
++}
++
++static inline int is_alpha2(const char *alpha2)
++{
++	if (isalpha_upper(alpha2[0]) && isalpha_upper(alpha2[1]))
++		return 1;
++	return 0;
++}
++
++/* Avoid stdlib */
++static inline int is_len_2(const char *alpha2)
++{
++        if (alpha2[0] == '\0' || (alpha2[1] == '\0'))
++                return 0;
++        if (alpha2[2] == '\0')
++                return 1;
++        return 0;
++}
++
++static inline int is_valid_regdom(const char *alpha2)
++{
++	if (!is_len_2(alpha2))
++		return 0;
++
++	if (!is_alpha2(alpha2) && !is_world_regdom(alpha2))
++		return 0;
++
++	return 1;
++}
++
++static inline __u32 max(__u32 a, __u32 b)
++{
++	return (a > b) ? a : b;
++}
++
++static inline __u32 min(__u32 a, __u32 b)
++{
++	return (a > b) ? b : a;
++}
++
++void *crda_get_file_ptr(__u8 *db, int dblen, int structlen, __be32 ptr);
++int crda_verify_db_signature(__u8 *db, int dblen, int siglen);
++
++/* File reg db entry -> rd converstion utilities */
++struct ieee80211_regdomain *country2rd(__u8 *db, int dblen,
++	struct regdb_file_reg_country *country);
++
++/* reg helpers */
++void print_regdom(struct ieee80211_regdomain *rd);
++
++#endif
+diff --git a/external/crda/regulatory.bin b/external/crda/regulatory.bin
+new file mode 100644
+index 0000000000000000000000000000000000000000..ca8ceffb30d113a5e43f921e145b5de59e6e44ea
+GIT binary patch
+literal 3224
+zcmZuwe{54#6u#~HOF*2u;EbS4=myFQ_K!&<8Q8vd>$?6}S=+4)bVer3Fl7-4l1wc`
+zff!<@q9KIAqC^m9vY06oXINlFB9K&Fq#D#AGnqPNAcRGW@jLh2Hy-FsPS1D0`<);6
+z+}FBbKo>&XDTH$veuEGeI9kpu`zhPmyYlR(_CccwL3{GFr{#3<-m#B8#nbs@{5951
+zc}2M2&5F_=<3jBAirD$Mh~EP(F!?1(<`c)`qM@W`l8^TlO5CtHEta|_Zj6nUT#p5w
+z)Bwv`eO{?Aef|K~1z$Q)D9WaLgaEGjtw)3xW`&qjC~?FM9{ms(-a0P%$UvKj{Ea(8
+zLpXX6dT654J4E!MF3C^!jGVDIJvZL#?KY`*?-io-XUqk$i47jnu&kPSV<w2DJgHHS
+z?2Yb{KAe*{*3UDdSel!8R#FdsQcw9Q&svNfxPF0Yo==TW#tIAi5=Agt!!R>W5{Weo
+zTTTFPx(z>uX5CE~_mXQ2zlgPD;0YUgyqm=Ikr5`%CYTM_4a2e&;>W-<O?a*emz%KH
+zgww#yFuaq6Fx4g84Ubxaa`(e1o)%%^X%UV{#5iEWl!sOZX2cRU^n{T|-j}dhZ{#7~
+z4a2hZ;RkxT_TiU!>g@!K^aiF{2Bw?_rdYz;VP>qEcq5iHMl4~K-_i_BR*ZhglZNnR
+z_y`R7E$#5F3ZI2fD!c=}Lg7IZrns4kC#>{h=S^5?B(JevVz-JNy{@-(0aGn3OBO$7
+zOnO>FFvUw;Bw6MuKdl~^!4o#~MlA8@S-zu92rIVMQ$pB)Z8NbkxSWYAfChco3Sr&Q
+z*s;ePt;l12PKbg4sA-CauHa!<KeWwKDg@4~WRJsIVK2ctV7p-lV7;&b#Kd94h}(u-
+z4sdQ$uDRfMsC+il+0ad#3o$#P9YhZ5(*w(c>j75|>jIDeCh_vF6*x1;P;TOkUfQ6;
+zkchLL1*Tch`3dYVoAyQEwwrRcV4s1e{kn$cTrhz>^@SYP5$xAN<ArsDH)_-ThSa@`
+zddtC$nKVX!)PvDqAF!b>0o-RgGj!D`L)fULnQEy#1*kQdN7XU()^Qve^EGl9y^Naj
+zmT-Mr7M!~8f4&QYcR|~OmeR1n|H%<i9D2W@KD}dw$AeR0kNYagJ2W4ug`?0Hm43M|
+zCcWmXBk#=kl4_rl`yyY1+BZtyulsnf>wK;Uq|fOpzaEt5tvb3vzE+*<_3K>clwK=&
+zm#*sROQl}ZWqzm2FZ0`5{4(C5`DMH_?dSNsU&h<Bei`p5_9r;ruk!e19(!>>_G8xq
+zVLlJ2xB%D5Rr)1gT&eo5<i5u$Rlcea$5nA1Ehz8n(1P;5_Ld;W^#{4Xo}i(V^Rs7z
+za(?!aYFXczsh0i2D_ymkbG6htw2+!(Nc9uqxn)8emkx1UKBW2!srVZCj?PRC&vkAM
+zzBasfCd_&AVKv9F<Q*Mhna4g6mhb8;536}Z_<s3_x_5;8-WgGKBC5|wJ<la7-^rPa
+z@*Ml4YR*yaqbRE4qWEgjPd3W$6N&M?w3yU6v>5l5k8vM^wdy``{tmKnb&oi|&w)7K
+zCm-i}`MAm#=X+)2s_qj0PV;rDP968}O>p0Vgqm|g=5?kM>fQ-;j|AVdI3fFX=92t9
+zXOjFKjwSg$#*(t0Gn16_w0l!(E-Cp=_TCi7XHxuKw$yXo;d*}8@}+X`%r$acrjg$z
+zH}Citk1d{kbj!g<o;mtKRhQOz@t9@ho;RAlZ`rmokhuE8$RD0vC%?J$ZPT7#|0+Ir
+zyY=(cn^(M*x<zlkE%oRHYy14oKP@|WdHQDsFQ%V3+`H$s%*LuME$M6C8H+lKD!iTZ
+zyY5(Rb5y<45uN?j?wY$QuC`qq|1<yKz?C(l`=33x^~BhWlS|I)FKk`^W!aon6WNcC
+zbRS+D_&szqwYI6cbl#En;Hfq4d&SVST~l_n=V~X$dSCr#R`Af1_cu01w9~cj*B5LW
+zZYnH0^pV@Xe(I;Uo_V=<Bz5V-r_a=QFU;->&uZSA`z~GP`sH-NUf26yUm01oxFxk>
+VxU+rXl|}D$ZoGT{eGhzc>|bH5>zx1q
+
+literal 0
+HcmV?d00001
+
+diff --git a/external/crda/udev/regulatory.rules b/external/crda/udev/regulatory.rules
+new file mode 100644
+index 0000000..3d6add8
+--- /dev/null
++++ b/external/crda/udev/regulatory.rules
+@@ -0,0 +1,5 @@
++# Runs CRDA for kernel wireless regulatory events.
++# For more information see:
++# http://wireless.kernel.org/en/developers/Regulatory/CRDA
++
++KERNEL=="regulatory*", ACTION=="change", SUBSYSTEM=="platform", RUN+="$(SBINDIR)crda"
+diff --git a/external/crda/utils/key2pub.py b/external/crda/utils/key2pub.py
+new file mode 100755
+index 0000000..c7f1a7f
+--- /dev/null
++++ b/external/crda/utils/key2pub.py
+@@ -0,0 +1,153 @@
++#!/usr/bin/env python
++
++import sys
++try:
++       from M2Crypto import RSA
++except ImportError, e:
++       sys.stderr.write('ERROR: Failed to import the "M2Crypto" module: %s\n' % e.message)
++       sys.stderr.write('Please install the "M2Crypto" Python module.\n')
++       sys.stderr.write('On Debian GNU/Linux the package is called "python-m2crypto".\n')
++       sys.exit(1)
++
++def print_ssl_64(output, name, val):
++    while val[0] == '\0':
++        val = val[1:]
++    while len(val) % 8:
++        val = '\0' + val
++    vnew = []
++    while len(val):
++        vnew.append((val[0], val[1], val[2], val[3], val[4], val[5], val[6], val[7]))
++        val = val[8:]
++    vnew.reverse()
++    output.write('static BN_ULONG %s[%d] = {\n' % (name, len(vnew)))
++    idx = 0
++    for v1, v2, v3, v4, v5, v6, v7, v8 in vnew:
++        if not idx:
++            output.write('\t')
++        output.write('0x%.2x%.2x%.2x%.2x%.2x%.2x%.2x%.2x, ' % (ord(v1), ord(v2), ord(v3), ord(v4), ord(v5), ord(v6), ord(v7), ord(v8)))
++        idx += 1
++        if idx == 2:
++            idx = 0
++            output.write('\n')
++    if idx:
++        output.write('\n')
++    output.write('};\n\n')
++
++def print_ssl_32(output, name, val):
++    while val[0] == '\0':
++        val = val[1:]
++    while len(val) % 4:
++        val = '\0' + val
++    vnew = []
++    while len(val):
++        vnew.append((val[0], val[1], val[2], val[3], ))
++        val = val[4:]
++    vnew.reverse()
++    output.write('static BN_ULONG %s[%d] = {\n' % (name, len(vnew)))
++    idx = 0
++    for v1, v2, v3, v4 in vnew:
++        if not idx:
++            output.write('\t')
++        output.write('0x%.2x%.2x%.2x%.2x, ' % (ord(v1), ord(v2), ord(v3), ord(v4)))
++        idx += 1
++        if idx == 4:
++            idx = 0
++            output.write('\n')
++    if idx:
++        output.write('\n')
++    output.write('};\n\n')
++
++def print_ssl(output, name, val):
++    import struct
++    if len(struct.pack('@L', 0)) == 8:
++        return print_ssl_64(output, name, val)
++    else:
++        return print_ssl_32(output, name, val)
++
++def print_ssl_keys(output, n):
++    output.write(r'''
++struct pubkey {
++	struct bignum_st e, n;
++};
++
++#define KEY(data) {				\
++	.d = data,				\
++	.top = sizeof(data)/sizeof(data[0]),	\
++}
++
++#define KEYS(e,n)	{ KEY(e), KEY(n), }
++
++static struct pubkey keys[] = {
++''')
++    for n in xrange(n + 1):
++        output.write('	KEYS(e_%d, n_%d),\n' % (n, n))
++    output.write('};\n')
++    pass
++
++def print_gcrypt(output, name, val):
++    while val[0] == '\0':
++        val = val[1:]
++    output.write('static const __u8 %s[%d] = {\n' % (name, len(val)))
++    idx = 0
++    for v in val:
++        if not idx:
++            output.write('\t')
++        output.write('0x%.2x, ' % ord(v))
++        idx += 1
++        if idx == 8:
++            idx = 0
++            output.write('\n')
++    if idx:
++        output.write('\n')
++    output.write('};\n\n')
++
++def print_gcrypt_keys(output, n):
++    output.write(r'''
++struct key_params {
++	const __u8 *e, *n;
++	__u32 len_e, len_n; 
++};
++
++#define KEYS(_e, _n) {			\
++	.e = _e, .len_e = sizeof(_e),	\
++	.n = _n, .len_n = sizeof(_n),	\
++}
++
++static const struct key_params keys[] = {
++''')
++    for n in xrange(n + 1):
++        output.write('	KEYS(e_%d, n_%d),\n' % (n, n))
++    output.write('};\n')
++    
++
++modes = {
++    '--ssl': (print_ssl, print_ssl_keys),
++    '--gcrypt': (print_gcrypt, print_gcrypt_keys),
++}
++
++try:
++    mode = sys.argv[1]
++    files = sys.argv[2:-1]
++    outfile = sys.argv[-1]
++except IndexError:
++    mode = None
++
++if not mode in modes:
++    print 'Usage: %s [%s] input-file... output-file' % (sys.argv[0], '|'.join(modes.keys()))
++    sys.exit(2)
++
++output = open(outfile, 'w')
++
++# load key
++idx = 0
++for f in files:
++    try:
++        key = RSA.load_pub_key(f)
++    except RSA.RSAError:
++        key = RSA.load_key(f)
++
++    modes[mode][0](output, 'e_%d' % idx, key.e[4:])
++    modes[mode][0](output, 'n_%d' % idx, key.n[4:])
++    idx += 1
++
++modes[mode][1](output, idx - 1)
+-- 
+1.7.4.1
+

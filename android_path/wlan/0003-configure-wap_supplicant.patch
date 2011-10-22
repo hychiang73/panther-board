@@ -1,0 +1,32 @@
+From e5b172fd43ff34bdde99212e644811114e041b02 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sat, 22 Oct 2011 02:10:52 +0800
+Subject: [PATCH 09/10] configure wap_supplicant
+
+---
+ device/ti/beagleboard/BoardConfig.mk |    9 +++++++++
+ 1 files changed, 9 insertions(+), 0 deletions(-)
+
+diff --git a/device/ti/beagleboard/BoardConfig.mk b/device/ti/beagleboard/BoardConfig.mk
+index 9e31e45..b328e3b 100644
+--- a/device/ti/beagleboard/BoardConfig.mk
++++ b/device/ti/beagleboard/BoardConfig.mk
+@@ -19,6 +19,15 @@ OMAP_ENHANCEMENT := true
+ endif
+ #BUILD_WITH_FULL_STAGEFRIGHT := true
+ 
++######### NLCP R4 Setting #########
++BOARD_WPA_SUPPLICANT_DRIVER := CUSTOM                                                                                       
++WPA_SUPPLICANT_VERSION      := VER_0_6_X
++WIFI_DRIVER_MODULE_PATH     := "/system/lib/modules/wl12xx_sdio.ko"
++WIFI_DRIVER_MODULE_ARG      := ""
++WIFI_DRIVER_MODULE_NAME     := "wl12xx_sdio"
++WIFI_DRIVER_FW_STA_PATH     := "/system/etc/firmware/ti-connectivity/wl1271-fw-2.bin"
++##################################
++
+ # Setup some runtime system properties.
+ TARGET_BOARD_PLATFORM := omap3
+ TARGET_BOOTLOADER_BOARD_NAME := beagleboard
+-- 
+1.7.4.1
+
