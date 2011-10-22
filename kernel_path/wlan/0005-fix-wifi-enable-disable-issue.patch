@@ -1,4 +1,4 @@
-From 1bca2f84aa16260d7c07bd0680aa47db6135fcda Mon Sep 17 00:00:00 2001
+From b78ea7f9f91582cca8da9e13f6060e4e74661dff Mon Sep 17 00:00:00 2001
 From: Dicky Chiang <dickychiang73@gmail.com>
 Date: Sun, 23 Oct 2011 03:11:26 +0800
 Subject: [PATCH] fix wifi enable disable issue
@@ -17,7 +17,7 @@ usb-ehci will be config to Mode3 and voltage is always pulled.so need to diable 
  1 files changed, 1 insertions(+), 1 deletions(-)
 
 diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
-index aa03042..5750d87 100644
+index aa03042..44bfe84 100644
 --- a/arch/arm/mach-omap2/board-omap3beagle.c
 +++ b/arch/arm/mach-omap2/board-omap3beagle.c
 @@ -868,7 +868,7 @@ static void __init omap3beagle_flash_init(void)
@@ -25,7 +25,7 @@ index aa03042..5750d87 100644
  static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
  
 -	.port_mode[0] = EHCI_HCD_OMAP_MODE_PHY,
-+	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKOWN,
++	.port_mode[0] = EHCI_HCD_OMAP_MODE_UNKNOWN,
  	.port_mode[1] = EHCI_HCD_OMAP_MODE_PHY,
  	.port_mode[2] = EHCI_HCD_OMAP_MODE_UNKNOWN,
  
