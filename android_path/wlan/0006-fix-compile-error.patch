@@ -1,0 +1,26 @@
+From a7b7d33a43642117cbbb1b2f3251c8879a598f46 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 03:56:46 +0800
+Subject: [PATCH] fix compile error
+
+compile error by whitespace
+---
+ device/ti/beagleboard/BoardConfig.mk |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/device/ti/beagleboard/BoardConfig.mk b/device/ti/beagleboard/BoardConfig.mk
+index b328e3b..1941369 100644
+--- a/device/ti/beagleboard/BoardConfig.mk
++++ b/device/ti/beagleboard/BoardConfig.mk
+@@ -20,7 +20,7 @@ endif
+ #BUILD_WITH_FULL_STAGEFRIGHT := true
+ 
+ ######### NLCP R4 Setting #########
+-BOARD_WPA_SUPPLICANT_DRIVER := CUSTOM                                                                                       
++BOARD_WPA_SUPPLICANT_DRIVER := CUSTOM
+ WPA_SUPPLICANT_VERSION      := VER_0_6_X
+ WIFI_DRIVER_MODULE_PATH     := "/system/lib/modules/wl12xx_sdio.ko"
+ WIFI_DRIVER_MODULE_ARG      := ""
+-- 
+1.7.4.1
+
