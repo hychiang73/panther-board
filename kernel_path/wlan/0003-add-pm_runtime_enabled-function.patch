@@ -1,0 +1,37 @@
+From a6e91ca446f7782870679f6bbd2472ecf1dc02f7 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sat, 22 Oct 2011 01:33:34 +0800
+Subject: [PATCH 3/3] add pm_runtime_enabled function
+
+patch from TI WCS
+---
+ include/linux/pm_runtime.h |    6 ++++++
+ 1 files changed, 6 insertions(+), 0 deletions(-)
+
+diff --git a/include/linux/pm_runtime.h b/include/linux/pm_runtime.h
+index d19f1cc..0e6581f 100644
+--- a/include/linux/pm_runtime.h
++++ b/include/linux/pm_runtime.h
+@@ -81,6 +81,11 @@ static inline bool pm_runtime_suspended(struct device *dev)
+ 		&& !dev->power.disable_depth;
+ }
+ 
++static inline bool pm_runtime_enabled(struct device *dev)
++{
++    return !dev->power.disable_depth;
++}
++
+ static inline void pm_runtime_mark_last_busy(struct device *dev)
+ {
+ 	ACCESS_ONCE(dev->power.last_busy) = jiffies;
+@@ -119,6 +124,7 @@ static inline void pm_runtime_put_noidle(struct device *dev) {}
+ static inline bool device_run_wake(struct device *dev) { return false; }
+ static inline void device_set_run_wake(struct device *dev, bool enable) {}
+ static inline bool pm_runtime_suspended(struct device *dev) { return false; }
++static inline bool pm_runtime_enabled(struct device *dev) { return false; }
+ 
+ static inline int pm_generic_runtime_idle(struct device *dev) { return 0; }
+ static inline int pm_generic_runtime_suspend(struct device *dev) { return 0; }
+-- 
+1.7.4.1
+

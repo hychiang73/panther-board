@@ -1,0 +1,28 @@
+From abbac616b744e226a3cca90805e1d22c009c86c4 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sat, 22 Oct 2011 02:03:53 +0800
+Subject: [PATCH 07/10] fix compile error for libnl
+
+The .map file is for define the all pre-librares address and size.
+Must careful the limit of address.
+---
+ build/core/prelink-linux-arm.map |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/build/core/prelink-linux-arm.map b/build/core/prelink-linux-arm.map
+index 7daaf98..0be11e1 100644
+--- a/build/core/prelink-linux-arm.map
++++ b/build/core/prelink-linux-arm.map
+@@ -22,6 +22,9 @@
+ #   arm-eabi-objdump -x <lib>
+ #
+ 
++# netlink sockets libraries
++libnl.so                0xAFF10000# [???]
++
+ # core system libraries
+ libdl.so                0xAFF00000 # [<64K]
+ libc.so                 0xAFD00000 # [~2M]
+-- 
+1.7.4.1
+
