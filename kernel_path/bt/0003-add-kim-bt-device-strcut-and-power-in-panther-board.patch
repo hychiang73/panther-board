@@ -1,0 +1,106 @@
+From f612ebb85f4740ad431bed359399ea4fa9470342 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 14:08:58 +0800
+Subject: [PATCH 3/4] add kim bt device strcut and power in panther board
+
+The patch add to BTEN gpio, register btwilnk device, setting UART port and baud rate etc...,
+Can refer the 'CONFIG_TI_ST' included by it.
+---
+ arch/arm/mach-omap2/board-omap3beagle.c |   67 +++++++++++++++++++++++++++++++
+ 1 files changed, 67 insertions(+), 0 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 44bfe84..69aa5b0 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -56,6 +56,10 @@
+ #include <linux/regulator/fixed.h>
+ #endif
+ 
++#ifdef CONFIG_TI_ST
++#include <linux/ti_wilink_st.h>
++#endif
++
+ #include "mux.h"
+ #include "hsmmc.h"
+ #include "timer-gp.h"
+@@ -827,6 +831,64 @@ static void __init omap3_beagle_init_irq(void)
+ #endif
+ }
+ 
++#ifdef CONFIG_TI_ST
++
++#define BEAGLE_BTEN_GPIO       15
++
++/* Fix to prevent VIO leakage on 12xx */
++static int wl127x_vio_leakage_fix(void)
++{
++	int ret = 0;
++
++	pr_info(" wl12xx_vio_leakage_fix\n");
++
++	ret = gpio_request(BEAGLE_BTEN_GPIO, "wl12xx_bten");
++	if (ret < 0) {
++		pr_err("wl12xx_bten gpio_%d request fail", BEAGLE_BTEN_GPIO);
++		goto fail;
++	}
++
++	gpio_direction_output(BEAGLE_BTEN_GPIO, 1);
++	mdelay(10);
++	gpio_direction_output(BEAGLE_BTEN_GPIO, 0);
++	udelay(64);
++
++	gpio_free(BEAGLE_BTEN_GPIO);
++fail:
++	return ret;
++}
++
++int plat_kim_suspend(struct platform_device *pdev, pm_message_t state)
++{
++	/* TODO: wait for HCI-LL sleep */
++	return 0;
++}
++
++int plat_kim_resume(struct platform_device *pdev)
++{
++	return 0;
++}
++
++/* TI BT, FM, GPS connectivity chip */
++struct ti_st_plat_data wilink_pdata = {
++	.nshutdown_gpio = BEAGLE_BTEN_GPIO,
++	.dev_name = "/dev/ttyO1",
++	.flow_cntrl = 1,
++	.baud_rate = 3000000,
++	.suspend = plat_kim_suspend,
++	.resume = plat_kim_resume,
++};
++static struct platform_device kim_device = {
++	.name           = "kim",
++	.id             = -1,
++	.dev.platform_data = &wilink_pdata,
++};
++static struct platform_device btwilink_device = {
++	.name = "btwilink",
++	.id = -1,
++};
++#endif
++
+ static struct platform_device *omap3_beagle_devices[] __initdata = {
+ 	&leds_gpio,
+ 	&keys_gpio,
+@@ -958,6 +1020,11 @@ static void __init omap3_beagle_init(void)
+ 		pr_err("error setting wl12xx data\n");
+ 	platform_device_register(&beagle_wlan_regulator);
+ #endif
++
++#ifdef CONFIG_TI_ST
++	omap_mux_init_gpio(BEAGLE_BTEN_GPIO, OMAP_PIN_OUTPUT);
++	wl127x_vio_leakage_fix();
++#endif
+ }
+ 
+ MACHINE_START(OMAP3_BEAGLE, "OMAP3 Beagle Board")
+-- 
+1.7.4.1
+

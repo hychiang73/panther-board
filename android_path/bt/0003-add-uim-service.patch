@@ -1,0 +1,66 @@
+From 3d60cb5beeac8dad26eb370003999435549144f3 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 17:49:15 +0800
+Subject: [PATCH 3/3] add uim service
+
+TI BT do not use hciattch to communicate with android bluedroid,change to uim service.
+---
+ device/ti/beagleboard/init.rc |   25 +++++++++++++++----------
+ 1 files changed, 15 insertions(+), 10 deletions(-)
+
+diff --git a/device/ti/beagleboard/init.rc b/device/ti/beagleboard/init.rc
+index d749d8a..9785283 100755
+--- a/device/ti/beagleboard/init.rc
++++ b/device/ti/beagleboard/init.rc
+@@ -240,11 +240,11 @@ loglevel 3
+     chmod 0770 /cache/lost+found
+ 
+ #Owners, Modes for Bluetooth
+-    chmod 0660 /dev/ttyS1
+-    chown bluetooth bluetooth /dev/ttyS1
+-    chmod 0660 sys/class/rfkill/rfkill0/state
+-    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
+-    write sys/class/rfkill/rfkill0/state 0
++#    chmod 0660 /dev/ttyS1
++#    chown bluetooth bluetooth /dev/ttyS1
++#    chmod 0660 sys/class/rfkill/rfkill0/state
++#    chown bluetooth bluetooth /sys/class/rfkill/rfkill0/state
++#    write sys/class/rfkill/rfkill0/state 0
+ 
+ 
+ on boot
+@@ -354,7 +354,7 @@ on boot
+ #chown system system /system/etc/wifi/tiwlan_drv.ko
+ #chown system system /system/etc/wifi/firmware.bin
+ #chown system system /system/etc/wifi/tiwlan.ini
+-    chmod 0755 /wl1271bt_enable
++#    chmod 0755 /wl1271bt_enable
+ 
+ # Define TCP buffer sizes for various networks
+ #   ReadMin, ReadInitial, ReadMax, WriteMin, WriteInitial, WriteMax,
+@@ -506,13 +506,18 @@ service wlan_loader /system/bin/wlan_loader -n \
+     oneshot
+ 
+ # rfkill is not supported, use this instead
+-service btpwr /wl1271bt_enable /dev/ttyS1
+-    disabled
+-    oneshot
++#service btpwr /wl1271bt_enable /dev/ttyS1
++#    disabled
++#    oneshot
+ 
+-service hciattach /system/bin/hciattach -n /dev/ttyS1 texas 3000000
++service uim /system/bin/uim-sysfs
+     user root
++    group media bluetooth
++    oneshot
+ 
++#service hciattach /system/bin/hciattach -n /dev/ttyS1 texas 3000000
++service hciattach /system/bin/hciattach -l
++    user root
+ # changing user to root from bluetooth is a potential security issue
+     group bluetooth net_bt_admin misc
+     disabled
+-- 
+1.7.4.1
+

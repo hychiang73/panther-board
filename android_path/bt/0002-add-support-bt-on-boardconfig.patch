@@ -1,0 +1,26 @@
+From c14bcb56587067eae09b4c574599ac971a991344 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 14:34:13 +0800
+Subject: [PATCH 2/3] add support bt on boardconfig
+
+---
+ device/ti/beagleboard/BoardConfig.mk |    3 +++
+ 1 files changed, 3 insertions(+), 0 deletions(-)
+
+diff --git a/device/ti/beagleboard/BoardConfig.mk b/device/ti/beagleboard/BoardConfig.mk
+index 1941369..3d78a5a 100644
+--- a/device/ti/beagleboard/BoardConfig.mk
++++ b/device/ti/beagleboard/BoardConfig.mk
+@@ -28,6 +28,9 @@ WIFI_DRIVER_MODULE_NAME     := "wl12xx_sdio"
+ WIFI_DRIVER_FW_STA_PATH     := "/system/etc/firmware/ti-connectivity/wl1271-fw-2.bin"
+ ##################################
+ 
++# configure to support bluetooth
++BOARD_HAVE_BLUETOOTH := true
++
+ # Setup some runtime system properties.
+ TARGET_BOARD_PLATFORM := omap3
+ TARGET_BOOTLOADER_BOARD_NAME := beagleboard
+-- 
+1.7.4.1
+

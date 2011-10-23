@@ -1,0 +1,162 @@
+From 1166b9f35dfb40e1f64441472f591d46db2b1b57 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Sun, 23 Oct 2011 16:03:09 +0800
+Subject: [PATCH 4/4] register kim device and enable config in kernel
+
+---
+ arch/arm/configs/omap3_beagle_android_defconfig |   74 +++++++++++++++++++++-
+ arch/arm/mach-omap2/board-omap3beagle.c         |    4 +
+ 2 files changed, 74 insertions(+), 4 deletions(-)
+
+diff --git a/arch/arm/configs/omap3_beagle_android_defconfig b/arch/arm/configs/omap3_beagle_android_defconfig
+index e5348bb..4680efe 100644
+--- a/arch/arm/configs/omap3_beagle_android_defconfig
++++ b/arch/arm/configs/omap3_beagle_android_defconfig
+@@ -1,7 +1,7 @@
+ #
+ # Automatically generated make config: don't edit
+ # Linux/arm 2.6.37 Kernel Configuration
+-# Sat Oct 22 23:26:36 2011
++# Sun Oct 23 14:56:38 2011
+ #
+ CONFIG_ARM=y
+ CONFIG_SYS_SUPPORTS_APM_EMULATION=y
+@@ -562,7 +562,33 @@ CONFIG_DNS_RESOLVER=y
+ # CONFIG_HAMRADIO is not set
+ # CONFIG_CAN is not set
+ # CONFIG_IRDA is not set
+-# CONFIG_BT is not set
++CONFIG_BT=y
++CONFIG_BT_L2CAP=y
++CONFIG_BT_SCO=y
++CONFIG_BT_RFCOMM=y
++CONFIG_BT_RFCOMM_TTY=y
++CONFIG_BT_BNEP=y
++CONFIG_BT_BNEP_MC_FILTER=y
++CONFIG_BT_BNEP_PROTO_FILTER=y
++CONFIG_BT_HIDP=y
++
++#
++# Bluetooth device drivers
++#
++# CONFIG_BT_HCIBTUSB is not set
++# CONFIG_BT_HCIBTSDIO is not set
++CONFIG_BT_HCIUART=y
++CONFIG_BT_HCIUART_H4=y
++CONFIG_BT_HCIUART_BCSP=y
++# CONFIG_BT_HCIUART_ATH3K is not set
++CONFIG_BT_HCIUART_LL=y
++# CONFIG_BT_HCIBCM203X is not set
++# CONFIG_BT_HCIBPA10X is not set
++# CONFIG_BT_HCIBFUSB is not set
++# CONFIG_BT_HCIVHCI is not set
++# CONFIG_BT_MRVL is not set
++# CONFIG_BT_WL1271 is not set
++CONFIG_BT_WILINK=y
+ # CONFIG_AF_RXRPC is not set
+ CONFIG_WIRELESS=y
+ CONFIG_WIRELESS_EXT=y
+@@ -731,7 +757,43 @@ CONFIG_BLK_DEV_RAM_SIZE=16384
+ # CONFIG_ATA_OVER_ETH is not set
+ # CONFIG_MG_DISK is not set
+ # CONFIG_BLK_DEV_RBD is not set
+-# CONFIG_MISC_DEVICES is not set
++CONFIG_MISC_DEVICES=y
++# CONFIG_AD525X_DPOT is not set
++CONFIG_ANDROID_PMEM=y
++# CONFIG_ICS932S401 is not set
++# CONFIG_ENCLOSURE_SERVICES is not set
++# CONFIG_KERNEL_DEBUGGER_CORE is not set
++# CONFIG_APDS9802ALS is not set
++# CONFIG_ISL29003 is not set
++# CONFIG_ISL29020 is not set
++# CONFIG_SENSORS_TSL2550 is not set
++# CONFIG_SENSORS_BH1780 is not set
++# CONFIG_SENSORS_BH1770 is not set
++# CONFIG_SENSORS_APDS990X is not set
++# CONFIG_HMC6352 is not set
++# CONFIG_SENSORS_AK8975 is not set
++# CONFIG_DS1682 is not set
++# CONFIG_TI_DAC7512 is not set
++# CONFIG_UID_STAT is not set
++# CONFIG_BMP085 is not set
++# CONFIG_WL127X_RFKILL is not set
++# CONFIG_APANIC is not set
++# CONFIG_C2PORT is not set
++
++#
++# EEPROM support
++#
++# CONFIG_EEPROM_AT24 is not set
++# CONFIG_EEPROM_AT25 is not set
++# CONFIG_EEPROM_LEGACY is not set
++# CONFIG_EEPROM_MAX6875 is not set
++# CONFIG_EEPROM_93CX6 is not set
++# CONFIG_IWMC3200TOP is not set
++
++#
++# Texas Instruments shared transport line discipline
++#
++CONFIG_TI_ST=y
+ CONFIG_HAVE_IDE=y
+ # CONFIG_IDE is not set
+ 
+@@ -1661,6 +1723,7 @@ CONFIG_USB_HID=y
+ # CONFIG_HID_CYPRESS is not set
+ # CONFIG_HID_DRAGONRISE is not set
+ # CONFIG_HID_EGALAX is not set
++# CONFIG_HID_ELECOM is not set
+ # CONFIG_HID_EZKEY is not set
+ # CONFIG_HID_KYE is not set
+ # CONFIG_HID_UCLOGIC is not set
+@@ -1669,6 +1732,7 @@ CONFIG_USB_HID=y
+ # CONFIG_HID_TWINHAN is not set
+ # CONFIG_HID_KENSINGTON is not set
+ # CONFIG_HID_LOGITECH is not set
++# CONFIG_HID_MAGICMOUSE is not set
+ # CONFIG_HID_MICROSOFT is not set
+ # CONFIG_HID_MOSART is not set
+ # CONFIG_HID_MONTEREY is not set
+@@ -1689,6 +1753,7 @@ CONFIG_USB_HID=y
+ # CONFIG_HID_SMARTJOYPLUS is not set
+ # CONFIG_HID_TOPSEED is not set
+ # CONFIG_HID_THRUSTMASTER is not set
++# CONFIG_HID_WACOM is not set
+ # CONFIG_HID_ZEROPLUS is not set
+ # CONFIG_HID_ZYDACRON is not set
+ CONFIG_USB_SUPPORT=y
+@@ -2013,6 +2078,7 @@ CONFIG_ANDROID_LOW_MEMORY_KILLER=y
+ #
+ # Texas Instruments shared transport line discipline
+ #
++# CONFIG_ST_BT is not set
+ # CONFIG_ADIS16255 is not set
+ # CONFIG_SMB_FS is not set
+ # CONFIG_EASYCAP is not set
+@@ -2379,7 +2445,7 @@ CONFIG_BINARY_PRINTF=y
+ CONFIG_BITREVERSE=y
+ CONFIG_GENERIC_FIND_LAST_BIT=y
+ CONFIG_CRC_CCITT=y
+-# CONFIG_CRC16 is not set
++CONFIG_CRC16=y
+ # CONFIG_CRC_T10DIF is not set
+ # CONFIG_CRC_ITU_T is not set
+ CONFIG_CRC32=y
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 69aa5b0..8a9ebc7 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -894,6 +894,10 @@ static struct platform_device *omap3_beagle_devices[] __initdata = {
+ 	&keys_gpio,
+ 	&beagle_dss_device,
+ 	&usb_mass_storage_device,
++#ifdef CONFIG_TI_ST
++    &kim_device,
++    &btwilink_device,
++#endif
+ };
+ 
+ static void __init omap3beagle_flash_init(void)
+-- 
+1.7.4.1
+
