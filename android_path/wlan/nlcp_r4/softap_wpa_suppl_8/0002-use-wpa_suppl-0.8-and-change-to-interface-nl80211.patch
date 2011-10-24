@@ -3,6 +3,9 @@ From: Dicky Chiang <dickychiang73@gmail.com>
 Date: Tue, 25 Oct 2011 02:42:24 +0800
 Subject: [PATCH 2/2] use wpa_suppl 0.8 and change to interface 'nl80211'
 
+crypto : This file is needed for the function get_rfc3526_prime_1536 which will
+is used in hostapd/wpa_supplicant
+
 ---
  device/ti/beagleboard/BoardConfig.mk               |    2 +-
  device/ti/beagleboard/init.rc                      |    2 +-
