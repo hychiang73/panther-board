@@ -1,0 +1,84 @@
+From 7e414b1a49413aa2f5718f8552ef50be886d7fae Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Tue, 25 Oct 2011 02:42:24 +0800
+Subject: [PATCH 2/2] use wpa_suppl 0.8 and change to interface 'nl80211'
+
+---
+ device/ti/beagleboard/BoardConfig.mk               |    2 +-
+ device/ti/beagleboard/init.rc                      |    2 +-
+ external/openssl/crypto/Android.mk                 |    1 +
+ hardware/ti/wlan/mac80211/compat/Makefile          |    1 +
+ .../ti/wlan/mac80211/wpa_supplicant_lib/Android.mk |    4 ++++
+ 5 files changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/device/ti/beagleboard/BoardConfig.mk b/device/ti/beagleboard/BoardConfig.mk
+index 3d78a5a..d613a73 100644
+--- a/device/ti/beagleboard/BoardConfig.mk
++++ b/device/ti/beagleboard/BoardConfig.mk
+@@ -21,7 +21,7 @@ endif
+ 
+ ######### NLCP R4 Setting #########
+ BOARD_WPA_SUPPLICANT_DRIVER := CUSTOM
+-WPA_SUPPLICANT_VERSION      := VER_0_6_X
++WPA_SUPPLICANT_VERSION      := VER_0_8_X
+ WIFI_DRIVER_MODULE_PATH     := "/system/lib/modules/wl12xx_sdio.ko"
+ WIFI_DRIVER_MODULE_ARG      := ""
+ WIFI_DRIVER_MODULE_NAME     := "wl12xx_sdio"
+diff --git a/device/ti/beagleboard/init.rc b/device/ti/beagleboard/init.rc
+index 9785283..77b35f4 100755
+--- a/device/ti/beagleboard/init.rc
++++ b/device/ti/beagleboard/init.rc
+@@ -534,7 +534,7 @@ service hciattach /system/bin/hciattach -l
+ #    oneshot
+ 
+ ######## NLCP R4 Setting ########
+-service wpa_supplicant /system/bin/wpa_supplicant -Dmac80211_wext -iwlan0 -c/data/misc/wifi/wpa_supplicant.conf -dd
++service wpa_supplicant /system/bin/wpa_supplicant -Dnl80211 -iwlan0 -c/data/misc/wifi/wpa_supplicant.conf -dd
+     socket wpa_wlan0:0 dgram 660 wifi wifi
+     disabled
+     oneshot
+diff --git a/external/openssl/crypto/Android.mk b/external/openssl/crypto/Android.mk
+index 111374c..355c997 100644
+--- a/external/openssl/crypto/Android.mk
++++ b/external/openssl/crypto/Android.mk
+@@ -155,6 +155,7 @@ local_src_files := \
+ 	bn/bn_sqr.c \
+ 	bn/bn_sqrt.c \
+ 	bn/bn_word.c \
++	bn/bn_const.c \
+ 	buffer/buf_err.c \
+ 	buffer/buffer.c \
+ 	comp/c_rle.c \
+diff --git a/hardware/ti/wlan/mac80211/compat/Makefile b/hardware/ti/wlan/mac80211/compat/Makefile
+index 7bbd1b9..c20dc3b 100644
+--- a/hardware/ti/wlan/mac80211/compat/Makefile
++++ b/hardware/ti/wlan/mac80211/compat/Makefile
+@@ -93,6 +93,7 @@ install:
+ 	@install drivers/net/wireless/wl12xx/wl12xx_spi.ko      $(DESTDIR)/system/lib/modules/
+ 	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/system/etc/wifi
+ 	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/root/data/misc/wifi
++	@install ../config/hostapd.conf                  		$(DESTDIR)/root/data/misc/wifi
+ 	@# Installing WLAN/BT firmwares and tools to rootfs..
+ 	@echo "Installing WLAN/BT firmwares and tools to rootfs.."
+ 	@install ../firmware-files/TIInit_7.2.31.bts $(DESTDIR)/system/etc/firmware/
+diff --git a/hardware/ti/wlan/mac80211/wpa_supplicant_lib/Android.mk b/hardware/ti/wlan/mac80211/wpa_supplicant_lib/Android.mk
+index 0562f13..add3cb5 100644
+--- a/hardware/ti/wlan/mac80211/wpa_supplicant_lib/Android.mk
++++ b/hardware/ti/wlan/mac80211/wpa_supplicant_lib/Android.mk
+@@ -1,5 +1,7 @@
+ LOCAL_PATH := $(call my-dir)
+ 
++ifneq ($(WPA_SUPPLICANT_VERSION),VER_0_8_X)
++
+ ifeq ($(TARGET_SIMULATOR),true)
+   $(error This makefile must not be included when building the simulator)
+ endif
+@@ -51,3 +53,5 @@ LOCAL_CFLAGS := $(L_CFLAGS)
+ LOCAL_SRC_FILES := driver_mac80211.c
+ LOCAL_C_INCLUDES := $(INCLUDES)
+ include $(BUILD_STATIC_LIBRARY)
++
++endif # VER_8_X
+-- 
+1.7.4.1
+
