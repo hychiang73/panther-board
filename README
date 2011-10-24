@@ -1,10 +1,12 @@
-Panther board is base on the DM37x developed by AP module, is the Android 2.3.4 operation with kernel 2.6.37.
+Panther board is based on the DM37x developed by AP module, it is the Android 2.3.4 operation with kernel 2.6.37.
 
-These patches will provide full wireless capabilities for WG73/75xx module (WL127x/8x chip), and will continue to update. With these patches can be quickly verify, test the wireless capabilities on the board of panther.
+These patches will provide full wireless capabilities for WG73/75xx module (WL127x/8x chip), and also will continue to updated. 
 
-The these patches have questions or bugs, please contact me as soon as.
+It's patches can be quickly verified and tested the wireless capabilities on the board of panther.
 
-AP or wireless module if you are interested, please go to visit the website :)
+If the patches has any problems or bugs, please contact with me as soon as possible.
+
+If you are interested about AP or wireless modules, please going to the website.  :)
 
 http://www.jorjin.com.tw/Products_AP_module_Overview.htm
 
