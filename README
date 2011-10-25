@@ -6,7 +6,7 @@ It's patches can be quickly verified and tested the wireless capabilities on the
 
 If the patches has any problems or bugs, please contact with me as soon as possible.
 
-If you are interested about AP or wireless modules, please going to the website.  :)
+And if you are interested about AP or wireless modules, please going to the website.  :)
 
 http://www.jorjin.com.tw/Products_AP_module_Overview.htm
 
@@ -125,3 +125,21 @@ Note : use patches before, please move to correspond path to first. Example :
         Please note your path from patch. If you want to restore :
 
         $ patch -p1 -R < <patch_name>
+
+
+SoftAP By Manual Test
+======================
+
+Now,the softap function is provided for manual testing only.
+If you want to verify it, please use the command as below :
+
+Note,you must ready the "busybox" tool in you target board. 
+
+$ insmode /system/lib/modules/wl12xx_sdio.ko                // load wl12xx driver
+
+$ hostapd_bin -d /data/misc/wifi/hostapd.conf &             // start hostapd service
+
+$ ifconfig wlan0 192.168.43.1 netmask 255.255.255.0 up      // start device and set ipadder,netmask
+
+$ busybox udhcpd -f /etc/dhcpcd/dhcpcd-hooks/dhcpcd.conf &  // start dhcp server 
+        
