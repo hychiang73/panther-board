@@ -1,0 +1,118 @@
+From d0ba455f1b80a15c72655ac8e7a00bc225a097eb Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Tue, 25 Oct 2011 22:28:48 +0800
+Subject: [PATCH] support softap by manual testing
+
+The patches will provides softap function on panther board by manual test to verified.
+---
+ device/ti/beagleboard/init.rc                      |    2 ++
+ hardware/ti/wlan/mac80211/compat/Makefile          |   10 +++++++---
+ .../ti/wlan/mac80211/config/android_dhcpcd.conf    |   10 ++++++++--
+ hardware/ti/wlan/mac80211/config/hostapd.conf      |    7 +++----
+ 4 files changed, 20 insertions(+), 9 deletions(-)
+ create mode 100644 hardware/ti/wlan/mac80211/config/udhcpd.leases
+
+diff --git a/device/ti/beagleboard/init.rc b/device/ti/beagleboard/init.rc
+index 77b35f4..357ce26 100755
+--- a/device/ti/beagleboard/init.rc
++++ b/device/ti/beagleboard/init.rc
+@@ -199,6 +199,7 @@ loglevel 3
+         mkdir /data/misc/wifi/sockets 0770 wifi wifi
+         chmod 0770 /data/misc/wifi
+         chmod 0660 /data/misc/wifi/wpa_supplicant.conf
++        chmod 0777 /data/misc/wifi/hostapd.conf
+         chown wifi wifi /system/etc/wifi/wpa_supplicant.conf
+         mkdir /data/misc/wifi 0770 wifi wifi
+         mkdir /data/misc/dhcp 0770 dhcp dhcp
+@@ -218,6 +219,7 @@ loglevel 3
+     on post-fs
+         chown wifi wifi /data/misc/wifi
+         chown wifi wifi /data/misc/wifi/wpa_supplicant.conf
++        chown wifi wifi /data/misc/wifi/hostapd.conf
+     #################################
+ 
+     # wlan driver helper modules
+diff --git a/hardware/ti/wlan/mac80211/compat/Makefile b/hardware/ti/wlan/mac80211/compat/Makefile
+index c20dc3b..1de9310 100644
+--- a/hardware/ti/wlan/mac80211/compat/Makefile
++++ b/hardware/ti/wlan/mac80211/compat/Makefile
+@@ -3,6 +3,7 @@ ifeq ($(TARGET_PRODUCT),beagleboard)
+ KLIB ?= $(ANDROID_ROOT_DIR)/kernel
+ KLIB_BUILD := $(KLIB)
+ DESTDIR?=$(ANDROID_ROOT_DIR)/out/target/product/$(TARGET_PRODUCT)
++SOFTAP_BIN_DIR := $(DESTDIR)/obj/EXECUTABLES/hostapd_bin_intermediates/
+ endif
+ ############################################
+ 
+@@ -91,15 +92,18 @@ install:
+ 	@install net/wireless/cfg80211.ko                       $(DESTDIR)/system/lib/modules/
+ 	@install drivers/net/wireless/wl12xx/wl12xx_sdio.ko     $(DESTDIR)/system/lib/modules/
+ 	@install drivers/net/wireless/wl12xx/wl12xx_spi.ko      $(DESTDIR)/system/lib/modules/
+-	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/system/etc/wifi
+-	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/root/data/misc/wifi
+-	@install ../config/hostapd.conf                  		$(DESTDIR)/root/data/misc/wifi
++	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/system/etc/wifi/
++	@install ../config/wpa_supplicant.conf                  $(DESTDIR)/root/data/misc/wifi/
++	@install ../config/hostapd.conf                  		$(DESTDIR)/root/data/misc/wifi/
++	@install ../config/android_dhcpcd.conf                  $(DESTDIR)/system/etc/dhcpcd/dhcpcd-hooks/dhcpcd.conf
++	@install ../config/udhcpd.leases                  		$(DESTDIR)/root/data/misc/wifi/
+ 	@# Installing WLAN/BT firmwares and tools to rootfs..
+ 	@echo "Installing WLAN/BT firmwares and tools to rootfs.."
+ 	@install ../firmware-files/TIInit_7.2.31.bts $(DESTDIR)/system/etc/firmware/
+ 	@install ../firmware-files/wl1271-fw-multirole-roc.bin $(DESTDIR)/system/etc/firmware/ti-connectivity/wl1271-fw-multirole-roc.bin
+ 	@install ../firmware-files/wl1271-fw-multirole-plt.bin $(DESTDIR)/system/etc/firmware/ti-connectivity/wl1271-fw-multirole-plt.bin
+ 	@install ../firmware-files/wl1271-nvs.bin $(DESTDIR)/system/etc/firmware/ti-connectivity/wl1271-nvs.bin
++	@install $(SOFTAP_BIN_DIR)/hostapd_bin	$(DESTDIR)/system/bin/
+ 
+ clean:
+ 	$(MAKE) -C $(KLIB_BUILD) M=$(PWD) clean
+diff --git a/hardware/ti/wlan/mac80211/config/android_dhcpcd.conf b/hardware/ti/wlan/mac80211/config/android_dhcpcd.conf
+index a23a960..cdd36e3 100644
+--- a/hardware/ti/wlan/mac80211/config/android_dhcpcd.conf
++++ b/hardware/ti/wlan/mac80211/config/android_dhcpcd.conf
+@@ -1,6 +1,12 @@
+ # dhcpcd configuration for Android Wi-Fi interface
+ # See dhcpcd.conf(5) for details.
+ 
+-interface wlan0:0
++start           192.168.43.11
++end             192.168.43.255
++
++interface wlan0
+ # dhcpcd-run-hooks uses these options.
+-option subnet_mask, routers, domain_name_servers
++option subnet 255.255.255.0, routers, domain_name_servers
++
++max_leases      245
++lease_file     /data/misc/wifi/udhcpd.leases
+diff --git a/hardware/ti/wlan/mac80211/config/hostapd.conf b/hardware/ti/wlan/mac80211/config/hostapd.conf
+index ae257a8..57103ac 100644
+--- a/hardware/ti/wlan/mac80211/config/hostapd.conf
++++ b/hardware/ti/wlan/mac80211/config/hostapd.conf
+@@ -4,8 +4,7 @@ logger_syslog_level=2
+ logger_stdout=-1
+ logger_stdout_level=2
+ dump_file=/data/misc/wifi/hostapd.dump
+-ctrl_interface=/dev/socket
+-ctrl_interface_group=0
++ctrl_interface=/data/misc/wifi/wlan0
+ hw_mode=g
+ channel=11
+ beacon_int=100
+@@ -23,8 +22,8 @@ own_ip_addr=127.0.0.1
+ wpa_group_rekey=0
+ wpa_gmk_rekey=0
+ wpa_ptk_rekey=0
+-interface=wlan1
+-ssid=AndroidAP
++interface=wlan0
++ssid=JORJIN_AP_MODULE
+ country_code=US
+ ieee80211d=1
+ ap_table_max_size=255
+diff --git a/hardware/ti/wlan/mac80211/config/udhcpd.leases b/hardware/ti/wlan/mac80211/config/udhcpd.leases
+new file mode 100644
+index 0000000..e69de29
+-- 
+1.7.4.1
+
