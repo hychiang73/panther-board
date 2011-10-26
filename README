@@ -128,18 +128,15 @@ Note : use patches before, please move to correspond path to first. Example :
 
 
 SoftAP By Manual Test
-======================
+---------------------
+If you want to verify to SoftAP functions,you must to install "busybox" in you filesystem and then use script to start softap.
 
-Now,the softap function is provided for manual testing only.
-If you want to verify it, please use the command as below :
+Install busybox :
 
-Note,you must ready the "busybox" tool in you target board. 
+1. Download busybox-1.19.2 for lastest version.
 
-$ insmode /system/lib/modules/wl12xx_sdio.ko                // load wl12xx driver
+2. Toolchain use arm-2009qx to compile busybox.
 
-$ hostapd_bin -d /data/misc/wifi/hostapd.conf &             // start hostapd service
+3. Patch to "0004-add-hostap-dhcp-service-in-init.rc.patch" in android_path/wlan/nlcp_r4/softap_wpa_suppl_8.
 
-$ ifconfig wlan0 192.168.43.1 netmask 255.255.255.0 up      // start device and set ipadder,netmask
-
-$ busybox udhcpd -f /etc/dhcpcd/dhcpcd-hooks/dhcpcd.conf &  // start dhcp server 
-        
+4. Copy the script to you file system and then execute it. Scan it out of you phone or other station device.
