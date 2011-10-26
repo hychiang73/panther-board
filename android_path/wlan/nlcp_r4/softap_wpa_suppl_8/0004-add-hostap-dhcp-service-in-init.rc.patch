@@ -1,0 +1,55 @@
+From e3ee2a9faf9bad5f3fa99adcf9a3bdd9d6167045 Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Wed, 26 Oct 2011 11:50:51 +0800
+Subject: [PATCH] add hostap,dhcp service in init.rc
+
+The dhcp server is to start by busybox, you may to install busybox to you file system.
+---
+ device/ti/beagleboard/init.rc |   19 +++++++++++++++++--
+ 1 files changed, 17 insertions(+), 2 deletions(-)
+
+diff --git a/device/ti/beagleboard/init.rc b/device/ti/beagleboard/init.rc
+index 357ce26..96617bb 100755
+--- a/device/ti/beagleboard/init.rc
++++ b/device/ti/beagleboard/init.rc
+@@ -9,7 +9,7 @@ sysclktz 0
+ loglevel 3
+ 
+ # setup the global environment
+-    export PATH /sbin:/system/sbin:/system/bin:/system/xbin
++    export PATH /bin/bin:/bin/sbin:/sbin:/system/sbin:/system/bin:/system/xbin
+     export LD_LIBRARY_PATH /system/lib
+     export ANDROID_BOOTLOGO 1
+     export ANDROID_ROOT /system
+@@ -375,7 +375,8 @@ on boot
+ service ueventd /sbin/ueventd
+     critical
+ 
+-service console /system/bin/sh
++#service console /system/bin/sh
++service console /bin/bin/sh
+     console
+ 
+ service pvr /system/bin/sgx/rc.pvr start
+@@ -544,4 +545,18 @@ service wpa_supplicant /system/bin/wpa_supplicant -Dnl80211 -iwlan0 -c/data/misc
+ service dhcpcd /system/bin/dhcpcd -ABKL -d wlan0:0
+     disabled
+     oneshot
++
++# softap
++service hostapd_bin /system/bin/logwrapper /system/bin/hostapd_bin -d /data/misc/wifi/hostapd.conf
++    disabled
++    oneshot
++
++service ifcfg_softap /system/bin/ifconfig wlan0 192.168.43.1 netmask 255.255.255.0 up
++    disabled
++    oneshot
++
++#service dhcpd_softap /data/busybox/udhcpd -f /etc/dhcpcd/dhcpcd-hooks/dhcpcd.conf
++service dhcpd_softap /bin/sbin/udhcpd -f /etc/dhcpcd/dhcpcd-hooks/dhcpcd.conf
++    disabled
++    oneshot
+ ################################
+-- 
+1.7.4.1
+
