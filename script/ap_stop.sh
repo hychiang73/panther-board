@@ -7,5 +7,5 @@ sleep 3
 echo "stop hostap service"
 setprop ctl.stop hostapd_bin
 sleep 3
-echo "rmmod driver"
-rmmod wl12xx_sdio
+#echo "rmmod driver"
+#rmmod wl12xx_sdio
