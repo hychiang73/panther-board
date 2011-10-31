@@ -1,0 +1,32 @@
+From 08df6f98a7f3afa88fc883369249c9280fff64ac Mon Sep 17 00:00:00 2001
+From: Dicky Chiang <dickychiang73@gmail.com>
+Date: Mon, 24 Oct 2011 23:16:19 +0800
+Subject: [PATCH 1/2] fix mmc1 probe fail when boot in kernel
+
+---
+ arch/arm/mach-omap2/board-omap3beagle.c |    2 +-
+ 1 files changed, 1 insertions(+), 1 deletions(-)
+
+diff --git a/arch/arm/mach-omap2/board-omap3beagle.c b/arch/arm/mach-omap2/board-omap3beagle.c
+index 8a9ebc7..fc9d3f7 100644
+--- a/arch/arm/mach-omap2/board-omap3beagle.c
++++ b/arch/arm/mach-omap2/board-omap3beagle.c
+@@ -948,7 +948,6 @@ static const struct ehci_hcd_omap_platform_data ehci_pdata __initconst = {
+ static struct omap_board_mux board_mux[] __initdata = {
+     //USB gpio40
+     OMAP3_MUX(GPMC_A7, OMAP_MUX_MODE4 | OMAP_PIN_OUTPUT ),
+-	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ //SPI ADS7846
+ #ifdef CONFIG_TOUCHSCREEN_ADS7846
+ 	OMAP3_MUX(MCBSP1_FSR, OMAP_MUX_MODE4 | OMAP_PIN_INPUT_PULLDOWN),
+@@ -968,6 +967,7 @@ static struct omap_board_mux board_mux[] __initdata = {
+     OMAP3_MUX(SDMMC2_DAT2, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP),
+     OMAP3_MUX(SDMMC2_DAT3, OMAP_MUX_MODE0 | OMAP_PIN_INPUT_PULLUP),
+ #endif
++	{ .reg_offset = OMAP_MUX_TERMINATOR },
+ };
+ #endif
+ 
+-- 
+1.7.4.1
+
